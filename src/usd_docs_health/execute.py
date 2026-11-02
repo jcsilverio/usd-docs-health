@@ -1,6 +1,8 @@
 """Execution check for MyST code cells."""
 
 import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,22 +41,25 @@ def execute_page(
             f"and {len(code_cells)} in the notebook"
         )
 
-    client = NotebookClient(
-        notebook,
-        timeout=timeout_seconds,
-        kernel_name="python3",
-        resources={"metadata": {"path": str(page.parent)}},
-    )
     timed_out = False
-    try:
-        if python_path is None:
-            client.execute()
-        else:
-            client.execute(env=_kernel_env(python_path))
-    except CellTimeoutError:
-        timed_out = True
-    except CellExecutionError:
-        timed_out = False
+    with tempfile.TemporaryDirectory() as workdir:
+        copy_root = Path(workdir)
+        shutil.copytree(page.parent, copy_root, dirs_exist_ok=True)
+        client = NotebookClient(
+            notebook,
+            timeout=timeout_seconds,
+            kernel_name="python3",
+            resources={"metadata": {"path": str(copy_root)}},
+        )
+        try:
+            if python_path is None:
+                client.execute()
+            else:
+                client.execute(env=_kernel_env(python_path))
+        except CellTimeoutError:
+            timed_out = True
+        except CellExecutionError:
+            timed_out = False
 
     timeout_index = None
     if timed_out:

@@ -74,3 +74,11 @@ def test_cell_imports_lousd():
     assert len(results) == 1
     assert results[0].status == "pass"
     assert results[0].line == 4
+
+def test_cell_writes_stage_outside_fixtures():
+    written = PAGES / "made_in_temp.usda"
+    results = execute_page(PAGES / "cell_write_stage.md", python_path=CORPUS_SRC)
+    assert len(results) == 1
+    assert results[0].status == "pass"
+    assert results[0].line == 4
+    assert not written.exists()
