@@ -1,0 +1,265 @@
+# usd-docs-health v0: Specification
+
+## 1. What I'm building
+
+`usd-docs-health` is a small, independent tool that checks whether the code examples and API references in NVIDIA's public Learn OpenUSD documentation still work with a specific version of OpenUSD.
+
+While working through Learn OpenUSD hands-on, I ran into three things worth checking automatically:
+
+- The [References](https://docs.nvidia.com/learn-openusd/latest/composition-basics/references.html) lesson's examples call `create_new_stage()`, a helper imported from `lousd.utils.helperfunctions` in a hidden setup cell. A note on the page explains this and tells readers to use `Usd.Stage.CreateNew()` in their own scripts.
+- The [Stage Traversal](https://docs.nvidia.com/learn-openusd/latest/beyond-basics/stage-traversal.html) lesson's pruning snippet calls `prim_range.PruneChildren()`, but `prim_range` is never defined. Running it raises `NameError`.
+- The [Prims](https://docs.nvidia.com/learn-openusd/latest/stage-setting/prims.html) lesson lists a prim's type (`Cube`) where its name (`Box`) belongs.
+
+I also noticed that the rendered pages don't say which OpenUSD release they target. The Learn OpenUSD build installs `usd-core` 25.11: its `uv.lock` and the exported `requirements.txt` both pin that version, and `pyproject.toml` sets a floor of 25.5. My local environment runs 26.11. I want to turn observations like these into repeatable checks instead of relying on someone to catch the same problems by hand.
+
+Learn OpenUSD already has CI. On every push and pull request, its workflow builds the site with the lesson code cells executed on `usd-core` 25.11, then runs a pytest suite against the lessons. Two things fall outside it: whether the same cells still run on a newer release, and the ordinary `python` code fences, which the build displays but never executes. v0 runs the same cells on 26.11, and checks the ordinary fences without running them: it parses each one as Python and checks USD names reached through a module, such as `Usd.Stage.Open`.
+
+For v0, the tool checks a fixed snapshot of Learn OpenUSD against `usd-core==26.11`. It runs each lesson's code cells, checks the ordinary Python fences without running them, and reports what passed, failed, or couldn't be tested. If a check fails, the affected example or page can't be reported as healthy, and skipped examples are reported as skipped, never quietly counted as successes.
+
+The three things above don't all map to v0 checks:
+
+| What I found | Caught by v0 in the corpus? | Why |
+|---|---|---|
+| References: `create_new_stage()` | No | The hidden setup cell imports the helper, so the name is defined once that cell runs. Upstream's workflow executes these cells on 25.11; the 26.11 result will come from the corpus run. The page is expected to fail the parse check for another reason: its first USDA sample is in a `python` fence. |
+| Stage Traversal: `prim_range` | No | The snippet is an ordinary fence, which v0 parses but doesn't run, and `prim_range` is a local name, not a USD symbol. A fixture puts the same mistake in a code cell, where the execution check catches it. |
+| Prims: `Cube` for `Box` | No | It's in prose, which v0 doesn't scan. |
+
+So v0 doesn't flag any of the three where they sit in the pinned snapshot. They showed me which checks are worth building; the corpus run will show what those checks actually find.
+
+This isn't a fork of Learn OpenUSD or a general-purpose documentation linter. I'm keeping the first version small enough to build, test, and explain clearly.
+
+## 2. Scope and pinned versions
+
+The same inputs must produce comparable results locally and in CI, so both the documentation source and the USD version are fixed before any check runs.
+
+| Item | Decision |
+|---|---|
+| Documentation source | `NVIDIA-Omniverse/LearnOpenUSD` |
+| Source branch | `main`, pinned to one commit |
+| Corpus location | `vendor/learnopenusd` |
+| Commit SHA | Full 40-character SHA, to be recorded when the corpus is pinned |
+| Python | 3.12 |
+| USD package | `usd-core==26.11` |
+| CI environment | GitHub Actions, Linux runner |
+| GPU requirement | None |
+| Documentation unit | One lesson Markdown file under `vendor/learnopenusd/docs/` equals one page. Files the Sphinx build excludes from the site, such as `docs/_includes/`, aren't pages. |
+
+I'll use a Git submodule rather than downloading the documentation on every test run. The submodule makes the exact source revision visible in Git, and local and CI runs use the same files. For the first pin, I'll use the commit at the tip of `main` on the day I pin the corpus and record its full SHA and date. I won't assume that commit matches the public documentation deployment unless I can verify it separately. They can differ: on Nov 2, 2026, the published References page said LIVRPS where `main` said LIVERPS.
+
+The README and every report include the full corpus SHA and the installed USD version. Upstream changes aren't pulled in automatically.
+
+The version difference is intentional: I'm testing compatibility with 26.11, not claiming NVIDIA wrote these lessons for that version. Reports must make this clear when describing failures. Without a run on 25.11 to compare against, a failure shows that an example fails on 26.11, not that 26.11 caused it.
+
+### Git LFS and local setup
+
+The `LearnOpenUSD` repo uses Git LFS for images, videos, and USD assets. A plain submodule checkout can leave LFS pointer files instead of usable assets if LFS hasn't been initialized. The documented setup is:
+
+1. `git lfs install`
+2. `git submodule update --init --recursive`
+3. `git -C vendor/learnopenusd lfs pull`
+
+CI also initializes submodules and retrieves the LFS files the selected examples need. Only the execution check needs LFS content; the static check reads only the Markdown. Missing LFS content is reported as a setup problem, not as a broken documentation example. The checker detects it by finding LFS pointer files where the execution check needs real assets.
+
+## 3. Checks included in v0
+
+v0 has two checks: an execution check that runs the MyST code cells, and a static check of the ordinary Python fences.
+
+### 3.1 Finding Python examples
+
+Both checks scan Markdown files under the pinned corpus's `docs/` directory (`vendor/learnopenusd/docs/`), not this repository's own files. Learn OpenUSD mixes ordinary Python code fences with MyST notebook-style code cells. The Stage Traversal lesson is a useful test case: it has both, along with hidden setup code that prepares a USD stage.
+
+The extractor recognizes:
+
+- Ordinary fenced `python` blocks
+- MyST `{code-cell}` directives containing Python
+- Cell metadata, such as the `remove-input` tag on hidden setup cells
+
+I'll verify the exact supported syntax against the pinned commit when I pin it, and record representative examples in the parser tests. v0 doesn't execute `.ipynb` files or reproduce the full Sphinx and MyST-NB build.
+
+MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary Python fences are displayed but never executed by the build, and some are illustrative fragments with undefined variables, so v0 doesn't run them either. Instead, the static check parses each one as Python and checks its USD symbols (Section 3.4). A `python` fence that doesn't parse fails, with the parse error as the reason: a reader who copies it gets something that isn't Python.
+
+### 3.2 How code cells run
+
+Some Learn OpenUSD lessons build up state across several cells: an earlier cell creates a stage, and a later cell uses it without creating it again. Hidden setup cells, tagged `remove-input`, import helpers such as `create_new_stage()` from the corpus's `lousd` package, and the visible cells call them. So v0 runs each lesson page the way the documentation build does: as a notebook.
+
+Each Markdown page is converted to a notebook with jupytext and executed with nbclient, in a fresh kernel per page, with the hidden setup cells included. The working directory is the page's own folder inside a temporary copy of the corpus's `docs/` directory, because lessons use relative paths to their assets. The corpus's `src/` directory is on `PYTHONPATH`, so setup cells can import its `lousd` helper package. I don't install that package, because its dependencies include the full documentation toolchain. nbclient needs a registered Jupyter kernel, so the environment also installs `ipykernel`, which provides the `IPython` module that `lousd`'s display helpers import.
+
+Results are recorded per cell, with source locations and error details. When a cell fails, the page stops, and its remaining cells are marked skipped with the reason "earlier cell failed"; their results would otherwise reflect the first failure, not their own code. Each cell has an execution timeout. A cell that times out fails, and the rest of the page is skipped the same way.
+
+Running pages as notebooks follows the build's semantics closely, but it isn't a replacement for the full documentation build: v0 doesn't render pages or check their output.
+
+### 3.3 Display cells and skips
+
+Lesson cells that show a stage in a 3D viewer call `DisplayUSD` from the `lousd` package. It flattens the stage with USD and then calls an external converter, `usd2gltf`, to produce a glTF file for the viewer. The helper never checks the converter's result, and no lesson code reads the converted file. So v0 intercepts only that converter call inside each page's kernel. The USD code around it still runs, and so do the cells after it. The report counts how many converter calls were intercepted. That count is a separate tally of unchecked conversions, neither a pass of the conversion nor a skip, so a page can be healthy while every conversion on it was intercepted. v0 doesn't check the glTF conversion itself.
+
+Examples are skipped when they require:
+
+- `usdview`, Omniverse Kit, Isaac Sim, or GPU-specific functionality
+- Network access or external services
+- Missing generated assets or prerequisites that cannot be reproduced
+- Earlier cells that failed or were skipped
+
+Every skip must include a specific reason and source location. An example is skipped only when its unsupported prerequisite or dependency can be identified; an unexpected Python exception isn't enough. If an eligible example raises an unexpected exception, it fails. If an earlier cell fails, that failure stays visible even though the cells after it are skipped. These rules are explicit so the checker can't raise its pass rate by turning real failures into skips.
+
+### 3.4 Static check of ordinary Python fences
+
+The second check covers the ordinary Python fences that no build executes. For each fence, it first checks that the code parses as Python. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
+
+The check starts with modules such as `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. If a code block refers to `Usd.Stage.Open`, the checker resolves that dotted name through the installed `pxr` modules; a fake reference such as `Usd.Foo.Bar` fails. It uses a lightweight static parser and Python introspection, not full type inference.
+
+That means only names reached through a module are checked. Instance methods such as `prim.GetReferences()` would need type inference, and undefined local names such as `prim_range` aren't USD symbols, so neither is covered in v0.
+
+Dynamic references such as `getattr(Usd.Stage, name)` are out of scope for v0. The checker doesn't guess the value of `name`; dynamic lookups are excluded from symbol validation rather than reported as missing APIs.
+
+Each finding must include the page, source location, referenced symbol or parse error, and reason for failure.
+
+## 4. Results and exit codes
+
+Each individual check has one of three outcomes:
+
+| Result | Meaning |
+|---|---|
+| `pass` | The check ran successfully |
+| `fail` | The example failed, a fence didn't parse, or an expected API symbol was missing |
+| `skipped` | The check wasn't run, with a documented reason |
+
+v0 has no warnings and no scoring system.
+
+### Page-level health
+
+Page-level health combines the execution and static check results for the same Markdown file, so a page can be unhealthy because of a missing API symbol in a fence even when all its code cells passed. A page is:
+
+- **Healthy** when at least one check ran, all checks passed, and nothing was skipped. Intercepted converter calls aren't skips (Section 3.3).
+- **Unhealthy** when any check failed.
+- **Incomplete** when nothing failed but some checks were skipped, or the page had no eligible checks.
+
+A page with only skipped examples hasn't been verified, which is why it's incomplete rather than healthy. A page with no eligible checks at all, such as a prose-only lesson, is also incomplete, with the reason "no eligible checks," and the report counts those pages separately so they aren't mistaken for pages with skips.
+
+### CLI exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The run completed, at least one check executed, and no executed checks failed |
+| `1` | One or more documentation checks failed |
+| `2` | Setup, configuration, or coverage problem, such as a missing submodule, wrong USD version, missing required LFS assets, or no executable checks in the selected run |
+| `3` | Unexpected runner or internal tool error |
+
+If a run hits more than one of these, it returns the most serious: `3`, then `2`, then `1`, then `0`.
+
+Exit code `0` doesn't mean every page is healthy. It means the runner completed, at least one check executed, and no executed checks failed. Pages with skipped checks are still marked incomplete, and the report must show that coverage gap rather than claim the whole corpus is healthy. The command never returns success if it couldn't load the corpus, verify its environment, or execute any checks.
+
+## 5. CLI and local workflow
+
+v0 has one entry point:
+
+```
+python -m usd_docs_health check --corpus vendor/learnopenusd --format json
+```
+
+The module name is provisional and will match the final package layout in `pyproject.toml`.
+
+The CLI produces a readable terminal summary, a JSON report, and a static HTML page table generated from that report. All three include:
+
+- Corpus commit SHA and USD version
+- Number of pages and code blocks discovered
+- Pass, fail, and skipped counts
+- Page-level results and source locations
+- Failure details and skip reasons
+
+The exit code tells a reader whether the run hit documentation failures, a setup problem, or a checker error. Each failure keeps its full traceback, so a single failure's cause can be read rather than guessed.
+
+The page table has one row per page, with its health, fail and skip counts, the first failure or skip reason, and the source location, sorted with failures first. Its header shows the corpus SHA, the USD version, and the pass, fail, and skipped totals. It's a single generated file with no scoring, charts, or scripts.
+
+The tool runs without a GPU, and code cells execute in a fresh kernel per page, with timeouts and temporary working directories. Because the checker executes code from an external repository, CI must run it without access to repository secrets or privileged credentials. A kernel isn't a security sandbox, so the pinned corpus and the execution environment remain part of the trust boundary.
+
+## 6. Tests and acceptance criteria
+
+What done means for each v0 deliverable, and how I'll check it:
+
+| Milestone | Done when | How I'll verify it |
+|---|---|---|
+| **Pinning** | Python 3.12, `usd-core==26.11`, the corpus SHA, and LFS setup are documented | `Usd.GetVersion()` reports the expected version; `git submodule status` matches the recorded SHA; required assets are available |
+| **CI** | GitHub Actions initializes submodules and LFS, installs pinned dependencies, runs pytest, and records corpus results | CI fails the job on checker failures and publishes real corpus findings |
+| **Static check** | Ordinary Python fences are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass; a fake symbol such as `Usd.Foo.Bar` fails; a fence that isn't Python fails |
+| **Execution check** | Code cells run per page as a notebook, hidden setup cells included, in page order | A corpus run produces accurate pass, fail, and skipped results, including dependency, timeout, and display-cell cases |
+| **Pytest fixtures** | Known-good and known-bad Markdown fixtures exist | `pytest` confirms that expected successes pass and known failures are detected |
+| **Page table** | A static HTML page table is generated from the JSON report | A fixture report produces the expected rows, with failures first |
+| **README** | Setup, exit codes, supported formats, versions, limitations, and actual results are documented | Another developer can reproduce the run and understand the numbers |
+
+### Fixtures I'll start with
+
+Small Markdown examples with known outcomes live in `tests/fixtures/pages/`. The first set covers a working USD example, a nonexistent API reference, a `python` fence that isn't Python, a broken Python example, two cells where the second depends on state from the first, and a cell that times out. A skipped-example fixture checks that missing prerequisites don't become false passes or unrelated runtime failures.
+
+A regression fixture is based on the `prim_range` mistake in the Stage Traversal lesson. It's a `{code-cell}` with the setup the mistake needs to produce a real `NameError`, so it shows the kind of bug the execution check catches. In the corpus itself, the snippet is an ordinary fence, which v0 doesn't run (Section 1).
+
+I'll write each check's fixtures before the check itself, so it has expected behavior to test against.
+
+## 7. CI and reporting policy
+
+GitHub Actions runs on pushes and pull requests with Python 3.12 and the pinned dependencies, with read-only repository permissions. The workflow checks out the repository and submodule, retrieves the required LFS content with an explicit `git -C vendor/learnopenusd lfs pull` step, installs dependencies, and runs the automated tests.
+
+CI keeps two questions separate:
+
+1. Is `usd-docs-health` itself working correctly?
+2. Does the pinned Learn OpenUSD corpus pass every check?
+
+For v0, **checker failures fail the CI job, and known corpus failures are reported without failing that job.** I treat a red checker run as not mergeable. Pytest failures, setup errors, missing dependencies, and unexpected runner crashes fail CI. A completed corpus run that finds documentation failures returns exit code `1`; the workflow recognizes that result, keeps the report, and lets the job pass if the checker tests and other required steps succeeded. Exit codes `2` and `3` still fail the job. There's no blanket `continue-on-error` setting that could hide real setup or tool failures.
+
+The corpus report and the page table are available as CI artifacts, with a summary of failures and skipped examples. Once I've run the pinned corpus, the README shows the real baseline, and it says plainly that a green CI badge means the checker passed its own validation, not that every upstream example is healthy.
+
+Making corpus regressions a blocking gate later would be a separate decision, with a documented baseline.
+
+## 8. Source, licenses, and attribution
+
+The `LearnOpenUSD` repo is licensed under Apache 2.0. The checker consumes the pinned source through a Git submodule and doesn't modify the upstream repository. If I copy upstream examples into local test fixtures, I'll keep the required attribution and license notices.
+
+I describe `usd-docs-health` as an independent project and avoid branding that suggests it's an official NVIDIA tool.
+
+If the checks uncover a genuine documentation issue, I may file an upstream issue with a minimal reproduction. Upstream fixes aren't required for v0.
+
+## 9. What I'm leaving out
+
+v0 defers:
+
+- Link checking
+- Hosted dashboards and historical trend tracking
+- Automated LLM-generated fixes
+- A full evaluation set: known-bad pages and fixes that measure whether the checks catch what they should
+- A Sphinx documentation site for this repository
+- Weighted health scores
+- Automatic upstream corpus updates
+- A second CI run on `usd-core` 25.11, to show which failures are specific to 26.11
+- Content pulled in with `{include}` or `literalinclude` directives, which isn't scanned
+- Reproducing the full Sphinx build, and dynamic API analysis
+
+These could be useful later, but first the basic checks need to be reproducible and trustworthy. After v0, a gate that decides whether a proposed docs change is safe to ship can build on them.
+
+## 10. How I'll build it
+
+The order is:
+
+1. Pin the corpus commit, record the SHA in this spec, and verify the Markdown formats that snapshot uses.
+2. Set up the package skeleton, the CLI with its exit codes, pytest, and CI, so every later change is tested on each push and pull request.
+3. Write the static check's fixtures, then build the check until they pass. It comes first because it needs only the Markdown, not the LFS assets.
+4. Write the execution check's fixtures, then build the check until they pass.
+5. Run the full pinned corpus, record the actual baseline, and finish the README with real output rather than placeholder results.
+6. Generate the page table from the corpus report.
+
+Coding agents propose implementation code and tests; I inspect the changes, reproduce failures, and decide whether the behavior matches this spec. That review step matters: while I worked through the lessons, agents suggested URLs, commands, and API details that turned out to be wrong when I ran them. Tests and reports are how those assumptions become visible.
+
+## 11. Remaining decisions
+
+These implementation details are still open:
+
+- The exact full SHA of the initial Learn OpenUSD snapshot, to be recorded when the corpus is pinned.
+- The precise parser patterns supported by that snapshot, to be confirmed against real lesson files.
+- Whether deliberate pseudo-code fences need a skip rule, once the corpus run shows whether any fail to parse.
+- The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
+- The timeout values and resource limits, to be set and tested during implementation.
+- The exact CLI package layout, to match `pyproject.toml`.
+
+Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
+
+## 12. What success looks like
+
+v0 is complete when another developer can clone the repository, reproduce the pinned environment, run the checks, and see exactly what worked, what failed, and what wasn't tested. Every pass, failure, and skip in the report traces back to a page, a source location, and a reason.
