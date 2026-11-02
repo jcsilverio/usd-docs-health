@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from usd_docs_health.execute import execute_page
+from usd_docs_health.execute import execute_page, pointer_files
 
 CORPUS_SRC = Path(__file__).parents[1] / "vendor" / "learnopenusd" / "src"
 
@@ -110,3 +110,61 @@ def test_cell_reads_file_outside_its_folder(tmp_path):
     assert len(results) == 1
     assert results[0].status == "pass"
     assert results[0].line == 4
+
+
+def test_pointer_file_named_by_a_cell(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    page = docs / "cell_pointer.md"
+    page.write_text((PAGES / "cell_pointer.md").read_text(encoding="utf-8"), encoding="utf-8")
+    asset = docs / "cell_pointer_asset.usda"
+    asset.write_text(
+        (PAGES / "cell_pointer_asset.usda").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    assert pointer_files(page) == [asset.resolve()]
+
+
+def test_real_usda_is_not_a_pointer(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    page = docs / "page.md"
+    page.write_text(
+        "```{code-cell}\nprint(open('stage.usda', encoding='utf-8').read())\n```\n",
+        encoding="utf-8",
+    )
+    (docs / "stage.usda").write_text("#usda 1.0\n", encoding="utf-8")
+    assert pointer_files(page) == []
+
+
+def test_pointer_inside_named_directory(tmp_path):
+    docs = tmp_path / "docs"
+    lesson = docs / "lesson"
+    box = docs / "exercise_content" / "box"
+    lesson.mkdir(parents=True)
+    box.mkdir(parents=True)
+    page = lesson / "page.md"
+    page.write_text(
+        "```{code-cell}\n"
+        "import shutil\n"
+        "shutil.copytree('../exercise_content/box', '_assets/box')\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    pointer = box / "mesh.usda"
+    pointer.write_text(
+        (PAGES / "cell_pointer_asset.usda").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    assert pointer_files(page) == [pointer.resolve()]
+
+
+def test_prim_path_is_not_an_asset(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    page = docs / "page.md"
+    page.write_text(
+        "```{code-cell}\nname = '/World/Environment'\n```\n",
+        encoding="utf-8",
+    )
+    assert pointer_files(page) == []

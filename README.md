@@ -33,7 +33,7 @@ The install name is `usd-docs-health`. The Python package is `usd_docs_health`, 
 |---|---|
 | 0 | The run finished, at least one check ran, and no executed check failed |
 | 1 | One or more documentation checks failed |
-| 2 | Setup or coverage problem, such as a missing corpus or a docs folder with no ordinary python fences and no code cells |
+| 2 | Setup or coverage problem, such as a missing corpus, a docs folder with no ordinary python fences and no code cells, or a code cell that needs an LFS pointer file |
 | 3 | Unexpected error in the tool |
 
 If more than one applies, the code is the most serious: 3, then 2, then 1, then 0.
@@ -56,13 +56,13 @@ The failure is `vendor/learnopenusd/docs/composition-basics/references.md`, line
 
 `skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()`, are outside the count. The numbers above are from the static check only. They do not include code cells.
 
-A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI still leaves LFS pointer files in place, so a cell that opens a lesson asset can fail for that reason.
+A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
 
 ## Limitations
 
-- Code cells run from the check command. `usd2gltf` is intercepted and counted. Cells that open Git LFS assets fail while those files are still pointers.
+- Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
 - Ordinary `python` fences are parsed and checked for module-dotted names. A fence that does not parse fails. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
-- Lesson assets in Git LFS are not required for the static check. CI checks the submodule out and leaves LFS pointer files in place.
+- Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version.
 - There is no score and no hosted dashboard.

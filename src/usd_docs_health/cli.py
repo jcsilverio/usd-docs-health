@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from usd_docs_health.execute import execute_page
+from usd_docs_health.execute import execute_page, pointer_files
 from usd_docs_health.static import Finding, check_fences
 
 
@@ -29,6 +29,14 @@ def main(argv=None) -> int:
         return 2
 
     pages = sorted(path for path in docs.rglob("*.md") if _is_page(path))
+    pointers = []
+    for page in pages:
+        pointers.extend(pointer_files(page))
+    if pointers:
+        for path in pointers:
+            print(f"LFS pointer file: {path}", file=sys.stderr)
+        return 2
+
     python_path = corpus / "src"
     if not python_path.is_dir():
         python_path = None

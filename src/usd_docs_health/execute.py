@@ -1,5 +1,6 @@
 """Execution check for MyST code cells."""
 
+import ast
 import os
 import shutil
 import tempfile
@@ -33,6 +34,19 @@ subprocess.run = _intercepting_run
 """
 
 _PROBE_CELL = "print(_usd2gltf_calls)"
+
+_POINTER_MARK = b"version https://git-lfs.github.com/spec/v1"
+_LFS_SUFFIXES = {
+    ".gif",
+    ".jpg",
+    ".mp4",
+    ".png",
+    ".usd",
+    ".usda",
+    ".usdc",
+    ".usdz",
+    ".webm",
+}
 
 
 @dataclass(frozen=True)
@@ -148,6 +162,21 @@ def _printed_text(cell) -> str:
     return "".join(parts).strip()
 
 
+def pointer_files(page: Path) -> list[Path]:
+    page = Path(page)
+    text = page.read_text(encoding="utf-8")
+    found: list[Path] = []
+    seen: set[Path] = set()
+    for _line, source in _code_cells(text):
+        for literal in _string_literals(source):
+            for path in _pointers_for(page, literal):
+                if path in seen:
+                    continue
+                seen.add(path)
+                found.append(path)
+    return found
+
+
 def _copy_source(page: Path) -> Path:
     for parent in page.parents:
         if parent.name == "docs":
@@ -166,8 +195,12 @@ def _kernel_env(python_path: Path | None) -> dict[str, str] | None:
 
 
 def _first_code_lines(text: str) -> list[int]:
+    return [line for line, _source in _code_cells(text)]
+
+
+def _code_cells(text: str) -> list[tuple[int, str]]:
     lines = text.splitlines()
-    found: list[int] = []
+    found: list[tuple[int, str]] = []
     index = 0
     while index < len(lines):
         stripped = lines[index].strip()
@@ -183,11 +216,68 @@ def _first_code_lines(text: str) -> list[int]:
                     index += 1
             if index < len(lines) and not lines[index].strip():
                 index += 1
-            found.append(index + 1)
+            start = index
+            body: list[str] = []
             while index < len(lines) and lines[index].strip() != "```":
+                body.append(lines[index])
                 index += 1
+            found.append((start + 1, "\n".join(body)))
         index += 1
     return found
+
+
+def _string_literals(source: str) -> list[str]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    values: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            values.append(node.value)
+    return values
+
+
+def _pointers_for(page: Path, literal: str) -> list[Path]:
+    if not literal or "\n" in literal or literal.startswith(("/", "\\")):
+        return []
+    candidate = Path(literal)
+    if candidate.is_absolute():
+        return []
+    target = page.parent / candidate
+    named = (
+        "/" in literal
+        or "\\" in literal
+        or candidate.suffix.lower() in _LFS_SUFFIXES
+        or target.exists()
+    )
+    if not named:
+        return []
+    root = _copy_source(page).resolve()
+    try:
+        resolved = target.resolve()
+    except OSError:
+        return []
+    if not resolved.is_relative_to(root):
+        return []
+    if resolved.is_file():
+        return [resolved] if _is_pointer(resolved) else []
+    if not resolved.is_dir():
+        return []
+    found: list[Path] = []
+    for child in resolved.rglob("*"):
+        if child.is_file() and _is_pointer(child):
+            found.append(child.resolve())
+    return found
+
+
+def _is_pointer(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            line = handle.readline(200)
+    except OSError:
+        return False
+    return line.strip() == _POINTER_MARK
 
 
 def _error_text(cell) -> str | None:
