@@ -56,6 +56,8 @@ def execute_page(
     page = Path(path)
     text = page.read_text(encoding="utf-8")
     code_lines = _first_code_lines(text)
+    if not code_lines:
+        return PageResults([], 0)
     notebook = jupytext.read(page, fmt="md:myst")
     notebook.metadata["kernelspec"] = {
         "name": "python3",

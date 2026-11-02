@@ -2,7 +2,7 @@
 
 `usd-docs-health` checks code examples and API references in NVIDIA's public Learn OpenUSD documentation against one pinned OpenUSD release. It is an independent project. It is not an official NVIDIA tool.
 
-The static check parses ordinary `python` fences and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. Code cells are not executed yet.
+The static check parses ordinary `python` fences and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run.
 
 ## Setup
 
@@ -33,7 +33,7 @@ The install name is `usd-docs-health`. The Python package is `usd_docs_health`, 
 |---|---|
 | 0 | The run finished, at least one check ran, and no executed check failed |
 | 1 | One or more documentation checks failed |
-| 2 | Setup or coverage problem, such as a missing corpus or a docs folder with no ordinary python fences |
+| 2 | Setup or coverage problem, such as a missing corpus or a docs folder with no ordinary python fences and no code cells |
 | 3 | Unexpected error in the tool |
 
 If more than one applies, the code is the most serious: 3, then 2, then 1, then 0.
@@ -54,14 +54,14 @@ Static check of ordinary `python` fences on the pinned corpus. These counts are 
 
 The failure is `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence there holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`. No missing USD symbol was reported.
 
-`skipped 0` means this check has no skip outcome. Code cells, `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()` are outside the count.
+`skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()`, are outside the count. The numbers above are from the static check only. They do not include code cells.
 
-A green CI run means pytest passed and the static check finished with exit code 0 or 1. Exit code 1 means a fence failed. It does not mean every lesson passed.
+A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI still leaves LFS pointer files in place, so a cell that opens a lesson asset can fail for that reason.
 
 ## Limitations
 
-- Code cells are not executed yet.
-- Ordinary `python` fences are parsed and checked for module-dotted names. A fence that does not parse fails. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`.
+- Code cells run from the check command. `usd2gltf` is intercepted and counted. Cells that open Git LFS assets fail while those files are still pointers.
+- Ordinary `python` fences are parsed and checked for module-dotted names. A fence that does not parse fails. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
 - Lesson assets in Git LFS are not required for the static check. CI checks the submodule out and leaves LFS pointer files in place.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version.

@@ -35,3 +35,19 @@ def test_missing_symbol_page_is_exit_1(tmp_path):
 def test_not_python_page_is_exit_1(tmp_path):
     corpus = _corpus_with(tmp_path, "not_python.md")
     assert main(["check", "--corpus", str(corpus)]) == 1
+
+
+def test_passing_cell_is_exit_0(tmp_path, capsys):
+    corpus = _corpus_with(tmp_path, "cell_passes.md")
+    assert main(["check", "--corpus", str(corpus)]) == 0
+    captured = capsys.readouterr()
+    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "usd2gltf calls 0" in captured.out
+
+
+def test_failing_cell_is_exit_1(tmp_path, capsys):
+    corpus = _corpus_with(tmp_path, "cell_fails.md")
+    assert main(["check", "--corpus", str(corpus)]) == 1
+    captured = capsys.readouterr()
+    assert "passed 0, failed 1, skipped 0" in captured.out
+    assert "broken cell" in captured.out

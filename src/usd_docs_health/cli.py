@@ -5,7 +5,8 @@ import json
 import sys
 from pathlib import Path
 
-from usd_docs_health.static import check_fences
+from usd_docs_health.execute import execute_page
+from usd_docs_health.static import Finding, check_fences
 
 
 def main(argv=None) -> int:
@@ -28,20 +29,33 @@ def main(argv=None) -> int:
         return 2
 
     pages = sorted(path for path in docs.rglob("*.md") if _is_page(path))
+    python_path = corpus / "src"
+    if not python_path.is_dir():
+        python_path = None
+
     findings = []
+    usd2gltf_calls = 0
     for page in pages:
         findings.extend(check_fences(page))
+        executed = execute_page(page, python_path=python_path)
+        usd2gltf_calls += executed.usd2gltf_calls
+        for item in executed:
+            findings.append(
+                _cell_finding(page, item.status, item.line, item.reason)
+            )
 
     if not findings:
-        print("No ordinary python fences found.", file=sys.stderr)
+        print("No ordinary python fences or code cells found.", file=sys.stderr)
         return 2
 
     failed = [item for item in findings if item.status == "fail"]
     passed = [item for item in findings if item.status == "pass"]
+    skipped = [item for item in findings if item.status == "skipped"]
     summary = {
         "passed": len(passed),
         "failed": len(failed),
-        "skipped": 0,
+        "skipped": len(skipped),
+        "usd2gltf_calls": usd2gltf_calls,
         "findings": [
             {
                 "status": item.status,
@@ -62,6 +76,7 @@ def main(argv=None) -> int:
             f"failed {summary['failed']}, "
             f"skipped {summary['skipped']}"
         )
+        print(f"usd2gltf calls {summary['usd2gltf_calls']}")
         for item in summary["findings"]:
             if item["status"] != "fail":
                 continue
@@ -69,6 +84,10 @@ def main(argv=None) -> int:
             print(f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip())
 
     return 1 if failed else 0
+
+
+def _cell_finding(page: Path, status: str, line: int, reason: str) -> Finding:
+    return Finding(status=status, symbol=None, line=line, reason=reason, page=str(page))
 
 
 def _is_page(path: Path) -> bool:
