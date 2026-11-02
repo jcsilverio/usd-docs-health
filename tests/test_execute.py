@@ -60,3 +60,9 @@ def test_cell_hidden():
     assert len(results) == 2
     assert [result.status for result in results] == ["pass", "pass"]
     assert [result.line for result in results] == [6, 10]
+
+def test_cell_neighbor():
+    results = execute_page(PAGES / "cell_neighbor.md")
+    assert len(results) == 1
+    assert results[0].status == "pass"
+    assert results[0].line == 4
