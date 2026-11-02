@@ -2,6 +2,8 @@ from pathlib import Path
 
 from usd_docs_health.execute import execute_page
 
+CORPUS_SRC = Path(__file__).parents[1] / "vendor" / "learnopenusd" / "src"
+
 PAGES = Path(__file__).parent / "fixtures" / "pages"
 
 
@@ -63,6 +65,12 @@ def test_cell_hidden():
 
 def test_cell_neighbor():
     results = execute_page(PAGES / "cell_neighbor.md")
+    assert len(results) == 1
+    assert results[0].status == "pass"
+    assert results[0].line == 4
+
+def test_cell_imports_lousd():
+    results = execute_page(PAGES / "cell_lousd.md", python_path=CORPUS_SRC)
     assert len(results) == 1
     assert results[0].status == "pass"
     assert results[0].line == 4

@@ -1,5 +1,6 @@
 """Execution check for MyST code cells."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,7 +18,11 @@ class CellResult:
     reason: str
 
 
-def execute_page(path: Path, timeout_seconds: int = TIMEOUT_SECONDS) -> list[CellResult]:
+def execute_page(
+    path: Path,
+    timeout_seconds: int = TIMEOUT_SECONDS,
+    python_path: Path | None = None,
+) -> list[CellResult]:
     page = Path(path)
     text = page.read_text(encoding="utf-8")
     code_lines = _first_code_lines(text)
@@ -42,7 +47,10 @@ def execute_page(path: Path, timeout_seconds: int = TIMEOUT_SECONDS) -> list[Cel
     )
     timed_out = False
     try:
-        client.execute()
+        if python_path is None:
+            client.execute()
+        else:
+            client.execute(env=_kernel_env(python_path))
     except CellTimeoutError:
         timed_out = True
     except CellExecutionError:
@@ -77,6 +85,16 @@ def execute_page(path: Path, timeout_seconds: int = TIMEOUT_SECONDS) -> list[Cel
         else:
             results.append(CellResult(status="pass", line=line, reason=""))
     return results
+
+
+def _kernel_env(python_path: Path | None) -> dict[str, str] | None:
+    if python_path is None:
+        return None
+    env = os.environ.copy()
+    previous = env.get("PYTHONPATH", "")
+    src = str(python_path)
+    env["PYTHONPATH"] = src if not previous else src + os.pathsep + previous
+    return env
 
 
 def _first_code_lines(text: str) -> list[int]:
