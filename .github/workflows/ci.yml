@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   test:
@@ -28,3 +29,22 @@ jobs:
 
       - name: Test
         run: python -m pytest
+
+      - name: Static check
+        run: |
+          set +e
+          python -m usd_docs_health check --corpus vendor/learnopenusd --format json | tee static-report.json
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ] || [ "$code" -eq 1 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Upload static report
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          path: static-report.json
+          if-no-files-found: error
+          archive: false
