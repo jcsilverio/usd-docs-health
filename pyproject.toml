@@ -9,6 +9,9 @@ description = "Checks Learn OpenUSD code examples against one pinned OpenUSD ver
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "usd-core==26.11",
+    "jupytext==1.17.2",
+    "nbclient==0.10.2",
+    "ipykernel==6.29.5",
 ]
 
 [project.optional-dependencies]
