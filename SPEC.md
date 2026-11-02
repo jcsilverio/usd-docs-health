@@ -156,7 +156,7 @@ v0 has one entry point:
 python -m usd_docs_health check --corpus vendor/learnopenusd --format json
 ```
 
-The module name is provisional and will match the final package layout in `pyproject.toml`.
+The distribution name in `pyproject.toml` is `usd-docs-health`. The Python package is `usd_docs_health`, under `src/`, so the repository root and the importable module stay separate.
 
 The CLI produces a readable terminal summary, a JSON report, and a static HTML page table generated from that report. All three include:
 
@@ -256,7 +256,6 @@ These implementation details are still open:
 - Whether deliberate pseudo-code fences need a skip rule, once the corpus run shows whether any fail to parse.
 - The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
 - The timeout values and resource limits, to be set and tested during implementation.
-- The exact CLI package layout, to match `pyproject.toml`.
 
 Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
 
