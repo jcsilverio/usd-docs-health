@@ -90,3 +90,23 @@ def test_cell_display_intercepts_usd2gltf():
     assert results[0].status == "pass"
     assert results[0].line == 4
     assert results.usd2gltf_calls == 1
+
+
+def test_cell_reads_file_outside_its_folder(tmp_path):
+    docs = tmp_path / "docs"
+    lesson = docs / "lesson"
+    exercise = docs / "exercise_content"
+    lesson.mkdir(parents=True)
+    exercise.mkdir()
+    (lesson / "cell_parent.md").write_text(
+        (PAGES / "cell_parent.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (exercise / "cell_parent_asset.txt").write_text(
+        (PAGES / "cell_parent_asset.txt").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    results = execute_page(lesson / "cell_parent.md")
+    assert len(results) == 1
+    assert results[0].status == "pass"
+    assert results[0].line == 4

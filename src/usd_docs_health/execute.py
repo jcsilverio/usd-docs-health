@@ -76,14 +76,16 @@ def execute_page(
     notebook.cells.append(probe)
 
     timed_out = False
+    source = _copy_source(page)
     with tempfile.TemporaryDirectory() as workdir:
         copy_root = Path(workdir)
-        shutil.copytree(page.parent, copy_root, dirs_exist_ok=True)
+        shutil.copytree(source, copy_root, dirs_exist_ok=True)
+        page_dir = copy_root / page.parent.relative_to(source)
         client = NotebookClient(
             notebook,
             timeout=timeout_seconds,
             kernel_name="python3",
-            resources={"metadata": {"path": str(copy_root)}},
+            resources={"metadata": {"path": str(page_dir)}},
         )
         try:
             if python_path is None:
@@ -144,6 +146,13 @@ def _printed_text(cell) -> str:
         else:
             parts.append(text)
     return "".join(parts).strip()
+
+
+def _copy_source(page: Path) -> Path:
+    for parent in page.parents:
+        if parent.name == "docs":
+            return parent
+    return page.parent
 
 
 def _kernel_env(python_path: Path | None) -> dict[str, str] | None:
