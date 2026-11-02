@@ -82,3 +82,11 @@ def test_cell_writes_stage_outside_fixtures():
     assert results[0].status == "pass"
     assert results[0].line == 4
     assert not written.exists()
+
+
+def test_cell_display_intercepts_usd2gltf():
+    results = execute_page(PAGES / "cell_display.md", python_path=CORPUS_SRC)
+    assert len(results) == 1
+    assert results[0].status == "pass"
+    assert results[0].line == 4
+    assert results.usd2gltf_calls == 1

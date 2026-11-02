@@ -7,10 +7,32 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jupytext
+import nbformat
 from nbclient import NotebookClient
 from nbclient.exceptions import CellExecutionError, CellTimeoutError
 
 TIMEOUT_SECONDS = 30
+
+_SETUP_CELL = """\
+import subprocess
+_usd2gltf_calls = 0
+_real_subprocess_run = subprocess.run
+
+def _intercepting_run(*args, **kwargs):
+    global _usd2gltf_calls
+    argv = kwargs.get("args")
+    if argv is None and args:
+        argv = args[0]
+    command = argv[0] if isinstance(argv, (list, tuple)) and argv else argv
+    if command == "usd2gltf":
+        _usd2gltf_calls += 1
+        return subprocess.CompletedProcess(argv, 0)
+    return _real_subprocess_run(*args, **kwargs)
+
+subprocess.run = _intercepting_run
+"""
+
+_PROBE_CELL = "print(_usd2gltf_calls)"
 
 
 @dataclass(frozen=True)
@@ -20,11 +42,17 @@ class CellResult:
     reason: str
 
 
+class PageResults(list):
+    def __init__(self, cells: list[CellResult], usd2gltf_calls: int):
+        super().__init__(cells)
+        self.usd2gltf_calls = usd2gltf_calls
+
+
 def execute_page(
     path: Path,
     timeout_seconds: int = TIMEOUT_SECONDS,
     python_path: Path | None = None,
-) -> list[CellResult]:
+) -> PageResults:
     page = Path(path)
     text = page.read_text(encoding="utf-8")
     code_lines = _first_code_lines(text)
@@ -40,6 +68,10 @@ def execute_page(
             f"{page} has {len(code_lines)} code cells in the file "
             f"and {len(code_cells)} in the notebook"
         )
+
+    notebook.cells.insert(0, nbformat.v4.new_code_cell(_SETUP_CELL))
+    probe = nbformat.v4.new_code_cell(_PROBE_CELL)
+    notebook.cells.append(probe)
 
     timed_out = False
     with tempfile.TemporaryDirectory() as workdir:
@@ -89,7 +121,27 @@ def execute_page(
             results.append(CellResult(status="fail", line=line, reason="cell did not run"))
         else:
             results.append(CellResult(status="pass", line=line, reason=""))
-    return results
+    return PageResults(results, _usd2gltf_calls(probe))
+
+
+def _usd2gltf_calls(probe) -> int:
+    text = _printed_text(probe)
+    if text.isdigit():
+        return int(text)
+    return 0
+
+
+def _printed_text(cell) -> str:
+    parts: list[str] = []
+    for output in cell.get("outputs", []):
+        if output.get("output_type") != "stream":
+            continue
+        text = output.get("text", "")
+        if isinstance(text, list):
+            parts.extend(text)
+        else:
+            parts.append(text)
+    return "".join(parts).strip()
 
 
 def _kernel_env(python_path: Path | None) -> dict[str, str] | None:
