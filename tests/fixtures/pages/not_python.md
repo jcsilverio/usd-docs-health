@@ -1,0 +1,9 @@
+# Not Python
+
+```python
+#usda 1.0
+
+def Xform "World"
+{
+}
+```
