@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "usd-docs-health"
+version = "0.1.0"
+description = "Checks Learn OpenUSD code examples against one pinned OpenUSD version."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "usd-core==26.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+]

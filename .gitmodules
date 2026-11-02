@@ -1,0 +1,3 @@
+[submodule "vendor/learnopenusd"]
+	path = vendor/learnopenusd
+	url = https://github.com/NVIDIA-Omniverse/LearnOpenUSD.git

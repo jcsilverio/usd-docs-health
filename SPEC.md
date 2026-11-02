@@ -37,7 +37,7 @@ The same inputs must produce comparable results locally and in CI, so both the d
 | Documentation source | `NVIDIA-Omniverse/LearnOpenUSD` |
 | Source branch | `main`, pinned to one commit |
 | Corpus location | `vendor/learnopenusd` |
-| Commit SHA | Full 40-character SHA, to be recorded when the corpus is pinned |
+| Commit SHA | `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2` (tip of `main` on Nov 2, 2026; committed Oct 22, 2026) |
 | Python | 3.12 |
 | USD package | `usd-core==26.11` |
 | CI environment | GitHub Actions, Linux runner |
