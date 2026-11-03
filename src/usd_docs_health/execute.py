@@ -128,12 +128,12 @@ def execute_page(
             )
             continue
         error = _error_text(cell)
-        if error:
-            failed = True
-            results.append(CellResult(status="fail", line=line, reason=error))
-        elif timeout_index == index:
+        if timeout_index == index:
             failed = True
             results.append(CellResult(status="fail", line=line, reason="cell timed out"))
+        elif error:
+            failed = True
+            results.append(CellResult(status="fail", line=line, reason=error))
         elif cell.get("execution_count") is None:
             failed = True
             results.append(CellResult(status="fail", line=line, reason="cell did not run"))
