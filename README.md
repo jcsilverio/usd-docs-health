@@ -84,4 +84,4 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 
 ## How this was built
 
-`SPEC.md` came first. It says what done looks like for each check and how that check is tested. Agents drafted the checker and the tests. A change landed when review and the tests agreed. The counts above are from running that checker, and they include the fence that fails.
+`SPEC.md` came first. It says what done looks like for each check and how that check is tested. Agents drafted checker and test code, and some of it was written by hand. A change landed when review and the tests agreed. The counts above are from running that checker, and they include the fence that fails.
