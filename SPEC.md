@@ -20,11 +20,11 @@ The three things above don't all map to v0 checks:
 
 | What I found | Caught by v0 in the corpus? | Why |
 |---|---|---|
-| References: `create_new_stage()` | No | The hidden setup cell imports the helper, so the name is defined once that cell runs. Upstream's workflow executes these cells on 25.11; the 26.11 result will come from the corpus run. The page is expected to fail the parse check for another reason: its first USDA sample is in a `python` fence. |
+| References: `create_new_stage()` | No | The hidden setup cell imports the helper, so the name is defined once that cell runs. Upstream's workflow executes these cells on 25.11. The 26.11 result will come from the corpus run. The page is expected to fail the parse check for another reason: its first USDA sample is in a `python` fence. |
 | Stage Traversal: `prim_range` | No | The snippet is an ordinary fence, which v0 parses but doesn't run, and `prim_range` is a local name, not a USD symbol. A fixture puts the same mistake in a code cell, where the execution check catches it. |
 | Prims: `Cube` for `Box` | No | It's in prose, which v0 doesn't scan. |
 
-So v0 doesn't flag any of the three where they sit in the pinned snapshot. They showed me which checks are worth building; the corpus run will show what those checks actually find.
+So v0 doesn't flag any of the three where they sit in the pinned snapshot. They showed me which checks are worth building. The corpus run will show what those checks actually find.
 
 This isn't a fork of Learn OpenUSD or a general-purpose documentation linter. I'm keeping the first version small enough to build, test, and explain clearly.
 
@@ -37,7 +37,7 @@ The same inputs must produce comparable results locally and in CI, so both the d
 | Documentation source | `NVIDIA-Omniverse/LearnOpenUSD` |
 | Source branch | `main`, pinned to one commit |
 | Corpus location | `vendor/learnopenusd` |
-| Commit SHA | `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2` (tip of `main` on Nov 2, 2026; committed Oct 22, 2026) |
+| Commit SHA | `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2` (tip of `main` on Nov 2, 2026, committed Oct 22, 2026) |
 | Python | 3.12 |
 | USD package | `usd-core==26.11` |
 | CI environment | GitHub Actions, Linux runner |
@@ -58,7 +58,7 @@ The `LearnOpenUSD` repo uses Git LFS for images, videos, and USD assets. A plain
 2. `git submodule update --init --recursive`
 3. `git -C vendor/learnopenusd lfs pull`
 
-CI also initializes submodules and retrieves the LFS files the selected examples need. Only the execution check needs LFS content; the static check reads only the Markdown. Missing LFS content is reported as a setup problem, not as a broken documentation example. The checker detects it by finding LFS pointer files where the execution check needs real assets.
+CI also initializes submodules and retrieves the LFS files the selected examples need. Only the execution check needs LFS content. The static check reads only the Markdown. Missing LFS content is reported as a setup problem, not as a broken documentation example. The checker detects it by finding LFS pointer files where the execution check needs real assets.
 
 ## 3. Checks included in v0
 
@@ -84,7 +84,7 @@ Some Learn OpenUSD lessons build up state across several cells: an earlier cell 
 
 Each Markdown page is converted to a notebook with jupytext and executed with nbclient, in a fresh kernel per page, with the hidden setup cells included. The working directory is the page's own folder inside a temporary copy of the corpus's `docs/` directory, because lessons use relative paths to their assets. The corpus's `src/` directory is on `PYTHONPATH`, so setup cells can import its `lousd` helper package. I don't install that package, because its dependencies include the full documentation toolchain. nbclient needs a registered Jupyter kernel, so the environment also installs `ipykernel`, which provides the `IPython` module that `lousd`'s display helpers import.
 
-Results are recorded per cell, with source locations and error details. When a cell fails, the page stops, and its remaining cells are marked skipped with the reason "earlier cell failed"; their results would otherwise reflect the first failure, not their own code. Each cell has an execution timeout. A cell that times out fails, and the rest of the page is skipped the same way.
+Results are recorded per cell, with source locations and error details. When a cell fails, the page stops, and its remaining cells are marked skipped with the reason "earlier cell failed". Their results would otherwise reflect the first failure, not their own code. Each cell has an execution timeout. A cell that times out fails, and the rest of the page is skipped the same way.
 
 Running pages as notebooks follows the build's semantics closely, but it isn't a replacement for the full documentation build: v0 doesn't render pages or check their output.
 
@@ -99,17 +99,17 @@ Examples are skipped when they require:
 - Missing generated assets or prerequisites that cannot be reproduced
 - Earlier cells that failed or were skipped
 
-Every skip must include a specific reason and source location. An example is skipped only when its unsupported prerequisite or dependency can be identified; an unexpected Python exception isn't enough. If an eligible example raises an unexpected exception, it fails. If an earlier cell fails, that failure stays visible even though the cells after it are skipped. These rules are explicit so the checker can't raise its pass rate by turning real failures into skips.
+Every skip must include a specific reason and source location. An example is skipped only when its unsupported prerequisite or dependency can be identified. An unexpected Python exception isn't enough. If an eligible example raises an unexpected exception, it fails. If an earlier cell fails, that failure stays visible even though the cells after it are skipped. These rules are explicit so the checker can't raise its pass rate by turning real failures into skips.
 
 ### 3.4 Static check of ordinary Python fences
 
 The second check covers the ordinary Python fences that no build executes. For each fence, it first checks that the code parses as Python. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
 
-The check starts with modules such as `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. If a code block refers to `Usd.Stage.Open`, the checker resolves that dotted name through the installed `pxr` modules; a fake reference such as `Usd.Foo.Bar` fails. It uses a lightweight static parser and Python introspection, not full type inference.
+The check starts with modules such as `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. If a code block refers to `Usd.Stage.Open`, the checker resolves that dotted name through the installed `pxr` modules. A fake reference such as `Usd.Foo.Bar` fails. It uses a lightweight static parser and Python introspection, not full type inference.
 
 That means only names reached through a module are checked. Instance methods such as `prim.GetReferences()` would need type inference, and undefined local names such as `prim_range` aren't USD symbols, so neither is covered in v0.
 
-Dynamic references such as `getattr(Usd.Stage, name)` are out of scope for v0. The checker doesn't guess the value of `name`; dynamic lookups are excluded from symbol validation rather than reported as missing APIs.
+Dynamic references such as `getattr(Usd.Stage, name)` are out of scope for v0. The checker doesn't guess the value of `name`. Dynamic lookups are excluded from symbol validation rather than reported as missing APIs.
 
 Each finding must include the page, source location, referenced symbol or parse error, and reason for failure.
 
@@ -178,9 +178,9 @@ What done means for each v0 deliverable, and how I'll check it:
 
 | Milestone | Done when | How I'll verify it |
 |---|---|---|
-| **Pinning** | Python 3.12, `usd-core==26.11`, the corpus SHA, and LFS setup are documented | `Usd.GetVersion()` reports the expected version; `git submodule status` matches the recorded SHA; required assets are available |
+| **Pinning** | Python 3.12, `usd-core==26.11`, the corpus SHA, and LFS setup are documented | `Usd.GetVersion()` reports the expected version. `git submodule status` matches the recorded SHA. Required assets are available |
 | **CI** | GitHub Actions initializes submodules and LFS, installs pinned dependencies, runs pytest, and records corpus results | CI fails the job on checker failures and publishes real corpus findings |
-| **Static check** | Ordinary Python fences are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass; a fake symbol such as `Usd.Foo.Bar` fails; a fence that isn't Python fails |
+| **Static check** | Ordinary Python fences are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass. A fake symbol such as `Usd.Foo.Bar` fails. A fence that isn't Python fails |
 | **Execution check** | Code cells run per page as a notebook, hidden setup cells included, in page order | A corpus run produces accurate pass, fail, and skipped results, including dependency, timeout, and display-cell cases |
 | **Pytest fixtures** | Known-good and known-bad Markdown fixtures exist | `pytest` confirms that expected successes pass and known failures are detected |
 | **Page table** | A static HTML page table is generated from the JSON report | A fixture report produces the expected rows, with failures first |
@@ -203,7 +203,7 @@ CI keeps two questions separate:
 1. Is `usd-docs-health` itself working correctly?
 2. Does the pinned Learn OpenUSD corpus pass every check?
 
-For v0, **checker failures fail the CI job, and known corpus failures are reported without failing that job.** I treat a red checker run as not mergeable. Pytest failures, setup errors, missing dependencies, and unexpected runner crashes fail CI. A completed corpus run that finds documentation failures returns exit code `1`; the workflow recognizes that result, keeps the report, and lets the job pass if the checker tests and other required steps succeeded. Exit codes `2` and `3` still fail the job. There's no blanket `continue-on-error` setting that could hide real setup or tool failures.
+For v0, **checker failures fail the CI job, and known corpus failures are reported without failing that job.** I treat a red checker run as not mergeable. Pytest failures, setup errors, missing dependencies, and unexpected runner crashes fail CI. A completed corpus run that finds documentation failures returns exit code `1`. The workflow recognizes that result, keeps the report, and lets the job pass if the checker tests and other required steps succeeded. Exit codes `2` and `3` still fail the job. There's no blanket `continue-on-error` setting that could hide real setup or tool failures.
 
 The corpus report and the page table are available as CI artifacts, with a summary of failures and skipped examples. Once I've run the pinned corpus, the README shows the real baseline, and it says plainly that a green CI badge means the checker passed its own validation, not that every upstream example is healthy.
 
@@ -245,7 +245,7 @@ The order is:
 5. Run the full pinned corpus, record the actual baseline, and finish the README with real output rather than placeholder results.
 6. Generate the page table from the corpus report.
 
-Coding agents propose implementation code and tests; I inspect the changes, reproduce failures, and decide whether the behavior matches this spec. That review step matters: while I worked through the lessons, agents suggested URLs, commands, and API details that turned out to be wrong when I ran them. Tests and reports are how those assumptions become visible.
+Coding agents propose implementation code and tests. I inspect the changes, reproduce failures, and decide whether the behavior matches this spec. That review step matters: while I worked through the lessons, agents suggested URLs, commands, and API details that turned out to be wrong when I ran them. Tests and reports are how those assumptions become visible.
 
 ## 11. Remaining decisions
 
