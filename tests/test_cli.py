@@ -68,6 +68,30 @@ def test_lfs_pointer_needed_by_a_cell_is_exit_2(tmp_path, capsys):
     assert "fail " not in captured.out
 
 
+def test_relative_corpus_path_can_import_src(tmp_path, monkeypatch, capsys):
+    corpus = tmp_path / "vendor" / "learnopenusd"
+    docs = corpus / "docs"
+    src = corpus / "src"
+    docs.mkdir(parents=True)
+    src.mkdir()
+    (src / "tinybox.py").write_text("LABEL = 'World'\n", encoding="utf-8")
+    (docs / "cell_tinybox.md").write_text(
+        "# Cell imports a corpus module\n"
+        "\n"
+        "```{code-cell}\n"
+        "import tinybox\n"
+        "print(tinybox.LABEL)\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    corpus_arg = "vendor/learnopenusd"
+    assert not Path(corpus_arg).is_absolute()
+    assert main(["check", "--corpus", corpus_arg]) == 0
+    captured = capsys.readouterr()
+    assert "passed 1, failed 0, skipped 0" in captured.out
+
+
 def test_unreferenced_lfs_pointer_is_exit_0(tmp_path):
     corpus = _corpus_with(tmp_path, "valid_dotted_name.md")
     pointer = corpus / "docs" / "cell_pointer_asset.usda"

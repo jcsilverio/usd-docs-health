@@ -189,7 +189,7 @@ def _kernel_env(python_path: Path | None) -> dict[str, str] | None:
         return None
     env = os.environ.copy()
     previous = env.get("PYTHONPATH", "")
-    src = str(python_path)
+    src = str(Path(python_path).resolve())
     env["PYTHONPATH"] = src if not previous else src + os.pathsep + previous
     return env
 
