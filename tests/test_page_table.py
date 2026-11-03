@@ -1,5 +1,5 @@
 from usd_docs_health.page_table import render_page_table
-from usd_docs_health.report import build_report, sort_pages_for_table
+from usd_docs_health.report import build_report, sort_pages_for_table, usd_version_string
 from usd_docs_health.static import Finding
 
 
@@ -79,3 +79,7 @@ def test_build_report_page_health_from_findings(tmp_path):
     row = report["pages"][0]
     assert row["health"] == "healthy"
     assert row["passed"] == 1
+
+
+def test_usd_version_string_is_the_pinned_release():
+    assert usd_version_string() == "26.11"

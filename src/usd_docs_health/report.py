@@ -25,8 +25,9 @@ def corpus_sha(corpus: Path) -> str:
 
 
 def usd_version_string() -> str:
-    major, minor, _patch = Usd.GetVersion()
-    return f"{major}.{minor}"
+    """The release string is the second and third components: (0, 26, 11) is 26.11."""
+    _major, minor, patch = Usd.GetVersion()
+    return f"{minor}.{patch}"
 
 
 def build_report(
