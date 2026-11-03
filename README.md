@@ -42,19 +42,32 @@ Exit code 0 does not mean every page is healthy. Pages with skipped checks stay 
 
 ## Results
 
-Static check of ordinary `python` fences on the pinned corpus. These counts are findings. A finding is one dotted name that resolved, or one fence that failed to parse. They are not page counts.
+Counts below are findings, not pages. A finding is one dotted name that resolved, one fence that failed to parse, or one code cell. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
+
+### Fences only
+
+Static check of ordinary `python` fences. These numbers do not include code cells.
 
 | Item | Value |
 |---|---|
-| Corpus SHA | `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2` |
-| USD version | 26.11 |
 | Passed | 65 |
 | Failed | 1 |
 | Skipped | 0 |
 
 The failure is `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence there holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`. No missing USD symbol was reported.
 
-`skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()`, are outside the count. The numbers above are from the static check only. They do not include code cells.
+`skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()`, are outside the count.
+
+### Fences and code cells
+
+On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command printed:
+
+```text
+passed 208, failed 1, skipped 0
+usd2gltf calls 32
+```
+
+The one failure is the same fence, `references.md` line 86, `expected '('`. No code cell failed. The 208 includes the fence findings and the code-cell findings. It does not replace the fence-only table. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 208, and it is not a pass of the glTF conversion.
 
 A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
 
