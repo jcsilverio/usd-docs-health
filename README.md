@@ -1,5 +1,7 @@
 # usd-docs-health
 
+![CI](https://github.com/jcsilverio/usd-docs-health/actions/workflows/ci.yml/badge.svg)
+
 `usd-docs-health` checks code examples and API references in NVIDIA's public Learn OpenUSD documentation against one pinned OpenUSD release. It is an independent project. It is not an official NVIDIA tool.
 
 The static check parses ordinary `python` fences and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run.
@@ -79,3 +81,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version.
 - There is no score and no hosted dashboard.
+
+## How this was built
+
+`SPEC.md` came first. It says what done looks like for each check and how that check is tested. Agents drafted the checker and the tests. A change landed when review and the tests agreed. The counts above are from running that checker, and they include the fence that fails.
