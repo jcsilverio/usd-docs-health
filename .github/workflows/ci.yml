@@ -47,12 +47,20 @@ jobs:
           fi
           exit "$code"
 
-      - name: Upload corpus reports
+      - name: Upload corpus report
         if: success() || failure()
         uses: actions/upload-artifact@v7
         with:
-          path: |
-            static-report.json
-            page-table.html
+          name: static-report
+          path: static-report.json
+          if-no-files-found: error
+          archive: false
+
+      - name: Upload page table
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: page-table
+          path: page-table.html
           if-no-files-found: error
           archive: false
