@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 from usd_docs_health.execute import execute_page, pointer_files
+from usd_docs_health.page_table import render_page_table
+from usd_docs_health.report import build_report
 from usd_docs_health.static import Finding, check_fences
 
 
@@ -16,6 +18,11 @@ def main(argv=None) -> int:
     check = subcommands.add_parser("check")
     check.add_argument("--corpus", required=True)
     check.add_argument("--format", choices=("text", "json"), default="text")
+    check.add_argument(
+        "--html",
+        metavar="PATH",
+        help="Write a static page table HTML file generated from the check results",
+    )
 
     args = parser.parse_args(argv)
     corpus = Path(args.corpus)
@@ -56,40 +63,29 @@ def main(argv=None) -> int:
         print("No ordinary python fences or code cells found.", file=sys.stderr)
         return 2
 
-    failed = [item for item in findings if item.status == "fail"]
-    passed = [item for item in findings if item.status == "pass"]
-    skipped = [item for item in findings if item.status == "skipped"]
-    summary = {
-        "passed": len(passed),
-        "failed": len(failed),
-        "skipped": len(skipped),
-        "usd2gltf_calls": usd2gltf_calls,
-        "findings": [
-            {
-                "status": item.status,
-                "symbol": item.symbol,
-                "line": item.line,
-                "reason": item.reason,
-                "page": item.page,
-            }
-            for item in findings
-        ],
-    }
+    report = build_report(corpus, pages, findings, usd2gltf_calls)
+    failed = report["failed"]
+
+    if args.html:
+        html_path = Path(args.html)
+        html_path.write_text(render_page_table(report), encoding="utf-8")
 
     if args.format == "json":
-        print(json.dumps(summary, indent=2))
+        print(json.dumps(report, indent=2))
     else:
         print(
-            f"passed {summary['passed']}, "
-            f"failed {summary['failed']}, "
-            f"skipped {summary['skipped']}"
+            f"passed {report['passed']}, "
+            f"failed {report['failed']}, "
+            f"skipped {report['skipped']}"
         )
-        print(f"usd2gltf calls {summary['usd2gltf_calls']}")
-        for item in summary["findings"]:
+        print(f"usd2gltf calls {report['usd2gltf_calls']}")
+        for item in report["findings"]:
             if item["status"] != "fail":
                 continue
             name = item["symbol"] if item["symbol"] else ""
-            print(f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip())
+            print(
+                f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip()
+            )
 
     return 1 if failed else 0
 

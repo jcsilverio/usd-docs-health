@@ -24,8 +24,10 @@ python -m pip install -e ".[dev]"
 ## Run
 
 ```text
-python -m usd_docs_health check --corpus vendor/learnopenusd --format json
+python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html
 ```
+
+The JSON report lists every finding. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. CI uploads both files as artifacts.
 
 The install name is `usd-docs-health`. The Python package is `usd_docs_health`, under `src/`.
 
@@ -80,7 +82,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version.
-- There is no score and no hosted dashboard.
+- There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command.
 
 ## How this was built
 
