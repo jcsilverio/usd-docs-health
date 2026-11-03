@@ -39,7 +39,7 @@ jobs:
       - name: Corpus check
         run: |
           set +e
-          python -m usd_docs_health check --corpus vendor/learnopenusd --format json | tee static-report.json
+          python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html | tee static-report.json
           code=$?
           set -e
           if [ "$code" -eq 0 ] || [ "$code" -eq 1 ]; then
@@ -47,10 +47,12 @@ jobs:
           fi
           exit "$code"
 
-      - name: Upload static report
+      - name: Upload corpus reports
         if: success() || failure()
         uses: actions/upload-artifact@v7
         with:
-          path: static-report.json
+          path: |
+            static-report.json
+            page-table.html
           if-no-files-found: error
           archive: false
