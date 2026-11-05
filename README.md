@@ -4,7 +4,7 @@
 
 `usd-docs-health` checks code examples and API references in NVIDIA's public Learn OpenUSD documentation against one pinned OpenUSD release. It is an independent project. It is not an official NVIDIA tool.
 
-The static check parses ordinary `python` fences and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run.
+The static check parses ordinary fences labeled `python` or `py` and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run.
 
 ## Setup
 
@@ -37,7 +37,7 @@ The install name is `usd-docs-health`. The Python package is `usd_docs_health`, 
 |---|---|
 | 0 | The run finished, at least one check ran, and no executed check failed |
 | 1 | One or more documentation checks failed |
-| 2 | Setup or coverage problem, such as a missing corpus, a docs folder with no ordinary python fences and no code cells, or a code cell that needs an LFS pointer file |
+| 2 | Setup or coverage problem, such as a missing corpus, a docs folder with no ordinary `python` or `py` fences and no code cells, or a code cell that needs an LFS pointer file |
 | 3 | Unexpected error in the tool |
 
 If more than one applies, the code is the most serious: 3, then 2, then 1, then 0.
@@ -50,15 +50,19 @@ Counts below are findings, not pages. A finding is one dotted name that resolved
 
 ### Fences only
 
-Static check of ordinary `python` fences. These numbers do not include code cells.
+Static check of ordinary `python` and `py` fences. These numbers do not include code cells.
 
 | Item | Value |
 |---|---|
-| Passed | 65 |
-| Failed | 1 |
+| Passed | 279 |
+| Failed | 3 |
 | Skipped | 0 |
 
-The failure is `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence there holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`. No missing USD symbol was reported.
+Of those 279 passes, 214 are dotted names in `py` fences and 65 are dotted names in `python` fences. The three failures are parse errors. Every dotted USD name that was checked was found in the installed modules.
+
+- `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`.
+- `vendor/learnopenusd/docs/asset-structure/workstreams/adding-user-workstreams.md`, line 92. A `py` fence holds one dictionary entry, `"roof": {"diffuseColor": (0.0, 0.0, 1.0), "roughness": 1.0, "metallic": 1.0},`. Python 3.12 reports `illegal target for annotation`.
+- `vendor/learnopenusd/docs/creating-composition-arcs/relocates/working-with-relocates.md`, line 95. A `py` fence holds one indented list item, meant to be inserted into a larger list. Python 3.12 reports `unexpected indent`.
 
 `skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives, and names such as `prim.GetReferences()`, are outside the count.
 
@@ -67,23 +71,25 @@ The failure is `vendor/learnopenusd/docs/composition-basics/references.md`, line
 On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command printed:
 
 ```text
-passed 208, failed 1, skipped 0
+passed 422, failed 3, skipped 0
 usd2gltf calls 32
 ```
 
-The one failure is the same fence, `references.md` line 86, `expected '('`. No code cell failed. The 208 includes the fence findings and the code-cell findings. It does not replace the fence-only table. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 208, and it is not a pass of the glTF conversion.
+The three failures are the fences above. Every code cell passed. The 422 is 279 fence passes plus 143 code-cell passes. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 422, and it is not a pass of the glTF conversion.
+
+The checker discovered 147 lesson pages. 52 were healthy, 3 were unhealthy, and 92 were incomplete. Every incomplete page had the reason "no eligible checks."
 
 A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
 
 ## Limitations
 
 - Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
-- Ordinary `python` fences are parsed and checked for module-dotted names. A fence that does not parse fails. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
+- Ordinary `python` and `py` fences are parsed and checked for module-dotted names. A fence that does not parse fails, including an exercise fragment that is not valid Python on its own. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code. A fence that parses and names no module-dotted USD symbol adds no finding. Ten of the incomplete pages contain such a `python` fence.
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
-- Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version.
+- Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version. A page that only names an included file is incomplete, with the reason "no eligible checks."
 - There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command.
 
 ## How this was built
 
-I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. Coding agents drafted checker and test code, and I wrote some of it by hand. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the fence that fails.
+I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. Coding agents drafted checker and test code, and I wrote some of it by hand. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the three fences that fail to parse.
