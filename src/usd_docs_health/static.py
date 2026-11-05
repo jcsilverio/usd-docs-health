@@ -1,4 +1,4 @@
-"""Static check for ordinary python fences."""
+"""Static check for ordinary python and py fences."""
 
 import ast
 import importlib
@@ -31,7 +31,7 @@ def _python_fences(text: str) -> list[tuple[int, str]]:
     found: list[tuple[int, str]] = []
     index = 0
     while index < len(lines):
-        if lines[index].strip() == "```python":
+        if lines[index].strip() in {"```python", "```py"}:
             index += 1
             content_start = index + 1
             body: list[str] = []
