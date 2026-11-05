@@ -37,6 +37,22 @@ def test_not_python_page_is_exit_1(tmp_path):
     assert main(["check", "--corpus", str(corpus)]) == 1
 
 
+def test_unexpected_page_error_is_exit_3(tmp_path, monkeypatch, capsys):
+    corpus = _corpus_with(tmp_path, "valid_dotted_name.md")
+
+    def boom(page):
+        raise RuntimeError("checker broke")
+
+    monkeypatch.setattr("usd_docs_health.cli.check_fences", boom)
+    assert main(["check", "--corpus", str(corpus)]) == 3
+    captured = capsys.readouterr()
+    assert "unexpected checker error" in captured.err
+    assert "valid_dotted_name.md" in captured.err
+    assert "checker broke" in captured.err
+    assert "passed " not in captured.out
+    assert "fail " not in captured.out
+
+
 def test_passing_cell_is_exit_0(tmp_path, capsys):
     corpus = _corpus_with(tmp_path, "cell_passes.md")
     assert main(["check", "--corpus", str(corpus)]) == 0
