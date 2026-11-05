@@ -40,7 +40,7 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html | tee static-report.json
+          python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html --llms llms.txt | tee static-report.json
           code=$?
           set -e
           if [ "$code" -eq 0 ] || [ "$code" -eq 1 ]; then
@@ -63,5 +63,14 @@ jobs:
         with:
           name: page-table
           path: page-table.html
+          if-no-files-found: error
+          archive: false
+
+      - name: Upload llms.txt
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: llms-txt
+          path: llms.txt
           if-no-files-found: error
           archive: false

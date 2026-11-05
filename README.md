@@ -24,10 +24,10 @@ python -m pip install -e ".[dev]"
 ## Run
 
 ```text
-python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html
+python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html --llms llms.txt
 ```
 
-The JSON report lists every finding. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. CI uploads both files as artifacts.
+The JSON report lists every finding. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
 
 The gate decides whether one proposed page can ship. It reruns the static check and the execution check on that file.
 
@@ -105,7 +105,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version. A page that only names an included file is incomplete, with the reason "no eligible checks."
-- There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command.
+- There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command. `llms.txt` comes from `--llms` on that same command.
 - `gate` judges one Markdown file with the same two checks. The rest of the corpus stays unread.
 
 ## How this was built
