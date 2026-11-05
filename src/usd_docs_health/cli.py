@@ -7,6 +7,7 @@ import traceback
 from pathlib import Path
 
 from usd_docs_health.execute import execute_page, pointer_files
+from usd_docs_health.llms_txt import render_llms_txt
 from usd_docs_health.page_table import render_page_table
 from usd_docs_health.report import build_report, summarize_page
 from usd_docs_health.static import Finding, check_fences
@@ -23,6 +24,11 @@ def main(argv=None) -> int:
         "--html",
         metavar="PATH",
         help="Write a static page table HTML file generated from the check results",
+    )
+    check.add_argument(
+        "--llms",
+        metavar="PATH",
+        help="Write an llms.txt file generated from the check results",
     )
 
     gate = subcommands.add_parser("gate")
@@ -83,6 +89,10 @@ def _check(args) -> int:
     if args.html:
         html_path = Path(args.html)
         html_path.write_text(render_page_table(report), encoding="utf-8")
+
+    if args.llms:
+        llms_path = Path(args.llms)
+        llms_path.write_text(render_llms_txt(report), encoding="utf-8")
 
     if args.format == "json":
         print(json.dumps(report, indent=2))
