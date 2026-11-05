@@ -159,6 +159,12 @@ def test_pointer_inside_named_directory(tmp_path):
     assert pointer_files(page) == [pointer.resolve()]
 
 
+def test_py_fence_is_not_executed():
+    results = execute_page(PAGES / "py_fence.md")
+    assert list(results) == []
+    assert results.usd2gltf_calls == 0
+
+
 def test_prim_path_is_not_an_asset(tmp_path):
     docs = tmp_path / "docs"
     docs.mkdir()
