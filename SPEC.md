@@ -12,9 +12,9 @@ While working through Learn OpenUSD hands-on, I ran into three things worth chec
 
 I also noticed that the rendered pages don't say which OpenUSD release they target. The Learn OpenUSD build installs `usd-core` 25.11: its `uv.lock` and the exported `requirements.txt` both pin that version, and `pyproject.toml` sets a floor of 25.5. My local environment runs 26.11. I want to turn observations like these into repeatable checks instead of relying on someone to catch the same problems by hand.
 
-Learn OpenUSD already has CI. On every push and pull request, its workflow builds the site with the lesson code cells executed on `usd-core` 25.11, then runs a pytest suite against the lessons. Two things fall outside it: whether the same cells still run on a newer release, and the ordinary `python` code fences, which the build displays but never executes. v0 runs the same cells on 26.11, and checks the ordinary fences without running them: it parses each one as Python and checks USD names reached through a module, such as `Usd.Stage.Open`.
+Learn OpenUSD already has CI. On every push and pull request, its workflow builds the site with the lesson code cells executed on `usd-core` 25.11, then runs a pytest suite against the lessons. Two things fall outside it. The same cells may not still run on a newer release. Ordinary fences labeled `python` or `py` are displayed and never executed. v0 runs the same cells on 26.11. It checks those fences without running them. It parses each one as Python and checks USD names reached through a module, such as `Usd.Stage.Open`.
 
-For v0, the tool checks a fixed snapshot of Learn OpenUSD against `usd-core==26.11`. It runs each lesson's code cells, checks the ordinary Python fences without running them, and reports what passed, failed, or couldn't be tested. If a check fails, the affected example or page can't be reported as healthy, and skipped examples are reported as skipped, never quietly counted as successes.
+For v0, the tool checks a fixed snapshot of Learn OpenUSD against `usd-core==26.11`. It runs each lesson's code cells, checks ordinary fences labeled `python` or `py` without running them, and reports what passed, failed, or couldn't be tested. If a check fails, the affected example or page can't be reported as healthy, and skipped examples are reported as skipped, never quietly counted as successes.
 
 The three things above don't all map to v0 checks:
 
@@ -62,21 +62,23 @@ CI also initializes submodules and retrieves the LFS files the selected examples
 
 ## 3. Checks included in v0
 
-v0 has two checks: an execution check that runs the MyST code cells, and a static check of the ordinary Python fences.
+v0 has two checks. An execution check runs the MyST code cells. A static check covers ordinary fences labeled `python` or `py`.
 
 ### 3.1 Finding Python examples
 
-Both checks scan Markdown files under the pinned corpus's `docs/` directory (`vendor/learnopenusd/docs/`), not this repository's own files. Learn OpenUSD mixes ordinary Python code fences with MyST notebook-style code cells. The Stage Traversal lesson is a useful test case: it has both, along with hidden setup code that prepares a USD stage.
+Both checks scan Markdown files under the pinned corpus's `docs/` directory (`vendor/learnopenusd/docs/`), not this repository's own files. Learn OpenUSD mixes ordinary fences labeled `python` or `py` with MyST notebook-style code cells. The Stage Traversal lesson is a useful test case. It has both, along with hidden setup code that prepares a USD stage.
 
-The extractor recognizes:
+The extractor recognizes three things.
 
-- Ordinary fenced `python` blocks
-- MyST `{code-cell}` directives containing Python
+- An ordinary fence whose opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``
+- A MyST `{code-cell}` directive that contains Python
 - Cell metadata, such as the `remove-input` tag on hidden setup cells
 
-I'll verify the exact supported syntax against the pinned commit when I pin it, and record representative examples in the parser tests. v0 doesn't execute `.ipynb` files or reproduce the full Sphinx and MyST-NB build.
+The pinned lessons use both labels. Working with Sublayers opens a snippet with `py`. Earlier lessons open snippets with `python`. Parser tests cover both. v0 doesn't execute `.ipynb` files or reproduce the full Sphinx and MyST-NB build.
 
-MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary Python fences are displayed but never executed by the build, and some are illustrative fragments with undefined variables, so v0 doesn't run them either. Instead, the static check parses each one as Python and checks its USD symbols (Section 3.4). A `python` fence that doesn't parse fails, with the parse error as the reason: a reader who copies it gets something that isn't Python.
+A label of `python3` stays out. A `{code-block}` directive stays out. Fences labeled `powershell` or `sh` stay out. Working with Sublayers uses those last two for terminal commands. A shell command parsed as Python would fail for the wrong reason.
+
+MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary fences labeled `python` or `py` are displayed and never executed by the build. Some are fragments with undefined variables, so v0 doesn't run them either. The static check parses each one as Python and checks its USD symbols (Section 3.4). A fence with either label that doesn't parse fails, and the parse error is the reason. A reader who copies it gets something that isn't Python.
 
 ### 3.2 How code cells run
 
@@ -101,9 +103,9 @@ Examples are skipped when they require:
 
 Every skip must include a specific reason and source location. An example is skipped only when its unsupported prerequisite or dependency can be identified. An unexpected Python exception isn't enough. If an eligible example raises an unexpected exception, it fails. If an earlier cell fails, that failure stays visible even though the cells after it are skipped. These rules are explicit so the checker can't raise its pass rate by turning real failures into skips.
 
-### 3.4 Static check of ordinary Python fences
+### 3.4 Static check of ordinary fences
 
-The second check covers the ordinary Python fences that no build executes. For each fence, it first checks that the code parses as Python. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
+The second check covers ordinary fences labeled `python` or `py`. No build executes them. For each fence, it first checks that the code parses as Python. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
 
 The check starts with modules such as `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. If a code block refers to `Usd.Stage.Open`, the checker resolves that dotted name through the installed `pxr` modules. A fake reference such as `Usd.Foo.Bar` fails. It uses a lightweight static parser and Python introspection, not full type inference.
 
@@ -127,13 +129,19 @@ v0 has no warnings and no scoring system.
 
 ### Page-level health
 
-Page-level health combines the execution and static check results for the same Markdown file, so a page can be unhealthy because of a missing API symbol in a fence even when all its code cells passed. A page is:
+Page-level health combines the execution and static check results for the same Markdown file, so a page can be unhealthy because of a missing API symbol in a fence even when all its code cells passed. A page is one of three things.
 
-- **Healthy** when at least one check ran, all checks passed, and nothing was skipped. Intercepted converter calls aren't skips (Section 3.3).
+- **Healthy** when at least one check ran, all checks passed, and nothing was skipped. Intercepted converter calls aren't skips (Section 3.3), and a referenced file that was not scanned isn't a skip either.
 - **Unhealthy** when any check failed.
 - **Incomplete** when nothing failed but some checks were skipped, or the page had no eligible checks.
 
 A page with only skipped examples hasn't been verified, which is why it's incomplete rather than healthy. A page with no eligible checks at all, such as a prose-only lesson, is also incomplete, with the reason "no eligible checks," and the report counts those pages separately so they aren't mistaken for pages with skips.
+
+`{include}` and `literalinclude` name a file and leave its contents unscanned. v0 counts each of those directives as referenced, not scanned, and leaves the file unread and unrun. The count sits beside the results the way intercepted `usd2gltf` calls do (Section 3.3). It is neither a pass nor a skip, so a page that already has a passing check stays healthy.
+
+Working with Sublayers is the mixed case. Its `py` fence is an eligible check. Its exercise script is a `literalinclude`. When the fence passes and nothing else fails, the page is healthy, and the script appears only in the count.
+
+Authoring Point Instancing has a `literalinclude` and no eligible fence or code cell. That page stays incomplete, with the reason "referenced, not scanned". A prose-only lesson keeps the reason "no eligible checks". The report counts those prose pages separately.
 
 ### CLI exit codes
 
@@ -144,7 +152,7 @@ A page with only skipped examples hasn't been verified, which is why it's incomp
 | `2` | Setup, configuration, or coverage problem, such as a missing submodule, wrong USD version, missing required LFS assets, or no executable checks in the selected run |
 | `3` | Unexpected runner or internal tool error |
 
-If a run hits more than one of these, it returns the most serious: `3`, then `2`, then `1`, then `0`.
+If the page loop raises an unexpected error, the command catches it and returns 3. If a run hits more than one of these, it returns the most serious one, in the order 3, then 2, then 1, then 0.
 
 Exit code `0` doesn't mean every page is healthy. It means the runner completed, at least one check executed, and no executed checks failed. Pages with skipped checks are still marked incomplete, and the report must show that coverage gap rather than claim the whole corpus is healthy. The command never returns success if it couldn't load the corpus, verify its environment, or execute any checks.
 
@@ -165,6 +173,7 @@ The CLI produces a readable terminal summary, a JSON report, and a static HTML p
 - Pass, fail, and skipped counts
 - Page-level results and source locations
 - Failure details and skip reasons
+- How many `{include}` and `literalinclude` directives were referenced and not scanned
 
 The exit code tells a reader whether the run hit documentation failures, a setup problem, or a checker error. Each failure keeps its full traceback, so a single failure's cause can be read rather than guessed.
 
@@ -180,7 +189,7 @@ What done means for each v0 deliverable, and how I'll check it:
 |---|---|---|
 | **Pinning** | Python 3.12, `usd-core==26.11`, the corpus SHA, and LFS setup are documented | `Usd.GetVersion()` reports the expected version. `git submodule status` matches the recorded SHA. Required assets are available |
 | **CI** | GitHub Actions initializes submodules and LFS, installs pinned dependencies, runs pytest, and records corpus results | CI fails the job on checker failures and publishes real corpus findings |
-| **Static check** | Ordinary Python fences are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass. A fake symbol such as `Usd.Foo.Bar` fails. A fence that isn't Python fails |
+| **Static check** | Ordinary fences labeled `python` or `py` are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass. A fake symbol such as `Usd.Foo.Bar` fails. A fence that isn't Python fails. A page whose only Python is a `py` fence naming `Usd.Stage.CreateNew` produces a finding |
 | **Execution check** | Code cells run per page as a notebook, hidden setup cells included, in page order | A corpus run produces accurate pass, fail, and skipped results, including dependency, timeout, and display-cell cases |
 | **Pytest fixtures** | Known-good and known-bad Markdown fixtures exist | `pytest` confirms that expected successes pass and known failures are detected |
 | **Page table** | A static HTML page table is generated from the JSON report | A fixture report produces the expected rows, with failures first |
@@ -189,6 +198,8 @@ What done means for each v0 deliverable, and how I'll check it:
 ### Fixtures I'll start with
 
 Small Markdown examples with known outcomes live in `tests/fixtures/pages/`. The first set covers a working USD example, a nonexistent API reference, a `python` fence that isn't Python, a broken Python example, two cells where the second depends on state from the first, and a cell that times out. A skipped-example fixture checks that missing prerequisites don't become false passes or unrelated runtime failures.
+
+One fixture page has no code cell and no `python` fence. Its only Python is a `py` fence that names `Usd.Stage.CreateNew`. Until the parser accepts `py`, that page is incomplete. Once the parser accepts `py`, the same page produces a finding.
 
 A regression fixture is based on the `prim_range` mistake in the Stage Traversal lesson. It's a `{code-cell}` with the setup the mistake needs to produce a real `NameError`, so it shows the kind of bug the execution check catches. In the corpus itself, the snippet is an ordinary fence, which v0 doesn't run (Section 1).
 
@@ -204,6 +215,10 @@ CI keeps two questions separate:
 2. Does the pinned Learn OpenUSD corpus pass every check?
 
 For v0, **checker failures fail the CI job, and known corpus failures are reported without failing that job.** I treat a red checker run as not mergeable. Pytest failures, setup errors, missing dependencies, and unexpected runner crashes fail CI. A completed corpus run that finds documentation failures returns exit code `1`. The workflow recognizes that result, keeps the report, and lets the job pass if the checker tests and other required steps succeeded. Exit codes `2` and `3` still fail the job. There's no blanket `continue-on-error` setting that could hide real setup or tool failures.
+
+The corpus step sets `pipefail`, a shell setting that makes a pipeline report the check command's exit code when that output is piped into `tee`. Exit code 1 still lets the job pass. Exit codes 2 and 3 still fail the job.
+
+The README tables now show 65 passed and 1 failed for fences, and 208 passed and 1 failed for fences and code cells. Those figures come from the fences the parser already recognized. The next full corpus run replaces them with whatever that run reports.
 
 The corpus report and the page table are available as CI artifacts, with a summary of failures and skipped examples. Once I've run the pinned corpus, the README shows the real baseline, and it says plainly that a green CI badge means the checker passed its own validation, not that every upstream example is healthy.
 
@@ -229,7 +244,7 @@ v0 defers:
 - Weighted health scores
 - Automatic upstream corpus updates
 - A second CI run on `usd-core` 25.11, to show which failures are specific to 26.11
-- Content pulled in with `{include}` or `literalinclude` directives, which isn't scanned
+- The contents of files named by `{include}` or `literalinclude`. v0 counts each directive and leaves the named file unread and unrun.
 - Reproducing the full Sphinx build, and dynamic API analysis
 
 These could be useful later, but first the basic checks need to be reproducible and trustworthy. After v0, a gate that decides whether a proposed docs change is safe to ship can build on them.
@@ -249,13 +264,13 @@ Coding agents propose implementation code and tests. I inspect the changes, repr
 
 ## 11. Remaining decisions
 
-These implementation details are still open:
+These implementation details are still open.
 
-- The exact full SHA of the initial Learn OpenUSD snapshot, to be recorded when the corpus is pinned.
-- The precise parser patterns supported by that snapshot, to be confirmed against real lesson files.
-- Whether deliberate pseudo-code fences need a skip rule, once the corpus run shows whether any fail to parse.
+- Whether deliberate pseudo-code fences need a skip rule, once the next corpus run shows whether any fail to parse.
 - The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
 - The timeout values and resource limits, to be set and tested during implementation.
+
+The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when its opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out.
 
 Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
 
