@@ -8,7 +8,7 @@ from pathlib import Path
 
 from usd_docs_health.execute import execute_page, pointer_files
 from usd_docs_health.page_table import render_page_table
-from usd_docs_health.report import build_report
+from usd_docs_health.report import build_report, summarize_page
 from usd_docs_health.static import Finding, check_fences
 
 
@@ -25,7 +25,18 @@ def main(argv=None) -> int:
         help="Write a static page table HTML file generated from the check results",
     )
 
+    gate = subcommands.add_parser("gate")
+    gate.add_argument("--page", required=True)
+    gate.add_argument("--corpus")
+
     args = parser.parse_args(argv)
+    if args.command == "gate":
+        corpus = None if args.corpus is None else Path(args.corpus)
+        return _gate(Path(args.page), corpus)
+    return _check(args)
+
+
+def _check(args) -> int:
     corpus = Path(args.corpus)
     if not corpus.is_dir():
         print(f"corpus not found: {corpus}", file=sys.stderr)
@@ -45,10 +56,7 @@ def main(argv=None) -> int:
             print(f"LFS pointer file: {path}", file=sys.stderr)
         return 2
 
-    python_path = corpus / "src"
-    if not python_path.is_dir():
-        python_path = None
-
+    python_path = _corpus_src(corpus)
     findings = []
     usd2gltf_calls = 0
     try:
@@ -94,6 +102,73 @@ def main(argv=None) -> int:
             )
 
     return 1 if failed else 0
+
+
+def _gate(page: Path, corpus: Path | None) -> int:
+    if not page.is_file():
+        print(f"page not found: {page}", file=sys.stderr)
+        return 2
+    if corpus is not None and not corpus.is_dir():
+        print(f"corpus not found: {corpus}", file=sys.stderr)
+        return 2
+
+    pointers = pointer_files(page)
+    if pointers:
+        for path in pointers:
+            print(f"LFS pointer file: {path}", file=sys.stderr)
+        return 2
+
+    python_path = _corpus_src(corpus)
+    try:
+        findings = list(check_fences(page))
+        executed = execute_page(page, python_path=python_path)
+        usd2gltf_calls = executed.usd2gltf_calls
+        for item in executed:
+            findings.append(_cell_finding(page, item.status, item.line, item.reason))
+        row = summarize_page(str(page), findings)
+    except Exception:
+        print(f"unexpected checker error: {page}", file=sys.stderr)
+        traceback.print_exc()
+        return 3
+
+    decision = "accept" if row["health"] == "healthy" else "reject"
+    print(decision)
+    print(
+        f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}"
+    )
+    if decision == "reject":
+        for line in _gate_reasons(findings):
+            print(line)
+    print(f"usd2gltf calls {usd2gltf_calls}")
+    return 0 if decision == "accept" else 1
+
+
+def _gate_reasons(findings: list[Finding]) -> list[str]:
+    if not findings:
+        return ["no eligible checks"]
+    lines = []
+    for item in sorted(findings, key=lambda item: (item.line, item.status)):
+        if item.status == "pass":
+            continue
+        if item.status == "fail":
+            name = item.symbol if item.symbol else ""
+            lines.append(
+                f"fail {item.page}:{item.line} {name} {item.reason}".rstrip()
+            )
+        else:
+            lines.append(f"skipped {item.page}:{item.line} {item.reason}".rstrip())
+    if lines:
+        return lines
+    return ["no eligible checks"]
+
+
+def _corpus_src(corpus: Path | None) -> Path | None:
+    if corpus is None:
+        return None
+    python_path = corpus / "src"
+    if python_path.is_dir():
+        return python_path
+    return None
 
 
 def _cell_finding(page: Path, status: str, line: int, reason: str) -> Finding:

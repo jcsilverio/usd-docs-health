@@ -29,9 +29,26 @@ python -m usd_docs_health check --corpus vendor/learnopenusd --format json --htm
 
 The JSON report lists every finding. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. CI uploads both files as artifacts.
 
+The gate decides whether one proposed page can ship. It reruns the static check and the execution check on that file.
+
+```text
+python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenusd
+```
+
+`--page` is the Markdown file, including a temporary copy. `--corpus` is optional. Pass it when the page imports lesson helpers from the corpus `src/` directory. The gate prints `accept` when the page is healthy: at least one check ran, every check passed, and nothing was skipped. It prints `reject` when the page is unhealthy or incomplete. A `py` fence that does not parse is a reject. A page with no eligible checks is a reject. You supply the page. The command accepts or rejects that file.
+
+```text
+reject
+passed 0, failed 1, skipped 0
+fail path/to/page.md:4 expected '('
+usd2gltf calls 0
+```
+
 The install name is `usd-docs-health`. The Python package is `usd_docs_health`, under `src/`.
 
 ## Exit codes
+
+`check` uses these codes.
 
 | Code | Meaning |
 |---|---|
@@ -42,7 +59,7 @@ The install name is `usd-docs-health`. The Python package is `usd_docs_health`, 
 
 If more than one applies, the code is the most serious: 3, then 2, then 1, then 0.
 
-Exit code 0 does not mean every page is healthy. Pages with skipped checks stay incomplete.
+For `check`, exit code 0 means the run finished and no executed check failed. Pages with skipped checks stay incomplete. For `gate`, exit code 0 means that one page is healthy. Exit code 1 means `reject`, including a page with no eligible checks or a skipped check. Exit code 2 means the page is missing, the corpus path is missing, or a code cell needs an LFS pointer file. Exit code 3 means an unexpected error.
 
 ## Results
 
@@ -89,6 +106,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, `{include}` and `literalinclude` directives, and instance methods such as `prim.GetReferences()` are outside this version. A page that only names an included file is incomplete, with the reason "no eligible checks."
 - There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command.
+- `gate` judges one Markdown file with the same two checks. The rest of the corpus stays unread.
 
 ## How this was built
 
