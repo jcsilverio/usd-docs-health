@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from usd_docs_health.execute import execute_page, pointer_files
@@ -50,14 +51,19 @@ def main(argv=None) -> int:
 
     findings = []
     usd2gltf_calls = 0
-    for page in pages:
-        findings.extend(check_fences(page))
-        executed = execute_page(page, python_path=python_path)
-        usd2gltf_calls += executed.usd2gltf_calls
-        for item in executed:
-            findings.append(
-                _cell_finding(page, item.status, item.line, item.reason)
-            )
+    try:
+        for page in pages:
+            findings.extend(check_fences(page))
+            executed = execute_page(page, python_path=python_path)
+            usd2gltf_calls += executed.usd2gltf_calls
+            for item in executed:
+                findings.append(
+                    _cell_finding(page, item.status, item.line, item.reason)
+                )
+    except Exception:
+        print(f"unexpected checker error: {page}", file=sys.stderr)
+        traceback.print_exc()
+        return 3
 
     if not findings:
         print("No ordinary python fences or code cells found.", file=sys.stderr)

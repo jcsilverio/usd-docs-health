@@ -39,6 +39,7 @@ jobs:
       - name: Corpus check
         run: |
           set +e
+          set -o pipefail
           python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html | tee static-report.json
           code=$?
           set -e
