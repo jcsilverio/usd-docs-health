@@ -37,6 +37,8 @@ python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenu
 
 `--page` is the Markdown file, including a temporary copy. `--corpus` is optional. Pass it when the page imports lesson helpers from the corpus `src/` directory. The gate prints `accept` when the page is healthy: at least one check ran, every check passed, and nothing was skipped. It prints `reject` when the page is unhealthy or incomplete. A `py` fence that does not parse is a reject. A page with no eligible checks is a reject. You supply the page. The command accepts or rejects that file.
 
+Pytest runs a few handwritten pages through that same command. The gate must reject each one: USDA text in a `python` fence, a `py` fence that holds only an indented fragment, a code cell that calls `prim_range` before that name exists, a visible `create_new_stage()` call with no setup cell, and a wording-only edit of the USDA page. Changing the wording leaves the failing block in place, so that edit is still a reject.
+
 ```text
 reject
 passed 0, failed 1, skipped 0
