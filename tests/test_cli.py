@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from usd_docs_health.cli import main
@@ -106,6 +107,81 @@ def test_relative_corpus_path_can_import_src(tmp_path, monkeypatch, capsys):
     assert main(["check", "--corpus", corpus_arg]) == 0
     captured = capsys.readouterr()
     assert "passed 1, failed 0, skipped 0" in captured.out
+
+
+def test_check_counts_includes_without_scanning_them(tmp_path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "valid_dotted_name.md").write_text(
+        "# Valid\n"
+        "\n"
+        "```python\n"
+        "Usd.Stage.Open()\n"
+        "```\n"
+        "\n"
+        "```{include} ./_includes/note.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    (docs / "included_only.md").write_text(
+        "# Exercise\n"
+        "\n"
+        "```{literalinclude} ../exercise_content/example.py\n"
+        ":caption: example.py\n"
+        ":linenos:\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    (docs / "prose.md").write_text(
+        "# Title\n\nThis lesson includes practical examples.\n",
+        encoding="utf-8",
+    )
+    html_path = tmp_path / "page-table.html"
+    llms_path = tmp_path / "llms.txt"
+    assert (
+        main(
+            [
+                "check",
+                "--corpus",
+                str(tmp_path),
+                "--format",
+                "json",
+                "--html",
+                str(html_path),
+                "--llms",
+                str(llms_path),
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["passed"] == 1
+    assert report["failed"] == 0
+    assert report["skipped"] == 0
+    assert report["referenced_not_scanned"] == 2
+    assert report["pages_no_eligible_checks"] == 1
+    rows = {Path(row["page"]).name: row for row in report["pages"]}
+    assert rows["valid_dotted_name.md"]["health"] == "healthy"
+    assert rows["valid_dotted_name.md"]["referenced_not_scanned"] == 1
+    assert rows["included_only.md"]["health"] == "incomplete"
+    assert rows["included_only.md"]["first_reason"] == "referenced, not scanned"
+    assert "Python" not in rows["included_only.md"]["first_reason"]
+    assert rows["prose.md"]["first_reason"] == "no eligible checks"
+    html = html_path.read_text(encoding="utf-8")
+    assert "Referenced, not scanned: 2" in html
+    assert "referenced, not scanned" in html
+    llms = llms_path.read_text(encoding="utf-8")
+    assert "included_only.md referenced, not scanned" in llms
+    assert "prose.md no eligible checks" in llms
+    assert "valid_dotted_name.md" not in llms
+    assert not (docs / "_includes" / "note.md").exists()
+    assert not (tmp_path / "exercise_content" / "example.py").exists()
+
+    assert main(["check", "--corpus", str(tmp_path)]) == 0
+    text = capsys.readouterr()
+    assert "passed 1, failed 0, skipped 0" in text.out
+    assert "referenced, not scanned 2" in text.out
 
 
 def test_unreferenced_lfs_pointer_is_exit_0(tmp_path):

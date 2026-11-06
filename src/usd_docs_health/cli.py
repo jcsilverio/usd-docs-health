@@ -9,7 +9,11 @@ from pathlib import Path
 from usd_docs_health.execute import execute_page, pointer_files
 from usd_docs_health.llms_txt import render_llms_txt
 from usd_docs_health.page_table import render_page_table
-from usd_docs_health.report import build_report, summarize_page
+from usd_docs_health.report import (
+    build_report,
+    count_referenced_not_scanned,
+    summarize_page,
+)
 from usd_docs_health.static import Finding, check_fences
 
 
@@ -103,6 +107,7 @@ def _check(args) -> int:
             f"skipped {report['skipped']}"
         )
         print(f"usd2gltf calls {report['usd2gltf_calls']}")
+        print(f"referenced, not scanned {report['referenced_not_scanned']}")
         for item in report["findings"]:
             if item["status"] != "fail":
                 continue
@@ -135,7 +140,8 @@ def _gate(page: Path, corpus: Path | None) -> int:
         usd2gltf_calls = executed.usd2gltf_calls
         for item in executed:
             findings.append(_cell_finding(page, item.status, item.line, item.reason))
-        row = summarize_page(str(page), findings)
+        referenced = count_referenced_not_scanned(page)
+        row = summarize_page(str(page), findings, referenced)
     except Exception:
         print(f"unexpected checker error: {page}", file=sys.stderr)
         traceback.print_exc()
@@ -147,14 +153,17 @@ def _gate(page: Path, corpus: Path | None) -> int:
         f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}"
     )
     if decision == "reject":
-        for line in _gate_reasons(findings):
+        for line in _gate_reasons(findings, referenced):
             print(line)
     print(f"usd2gltf calls {usd2gltf_calls}")
+    print(f"referenced, not scanned {referenced}")
     return 0 if decision == "accept" else 1
 
 
-def _gate_reasons(findings: list[Finding]) -> list[str]:
+def _gate_reasons(findings: list[Finding], referenced_not_scanned: int) -> list[str]:
     if not findings:
+        if referenced_not_scanned:
+            return ["referenced, not scanned"]
         return ["no eligible checks"]
     lines = []
     for item in sorted(findings, key=lambda item: (item.line, item.status)):
