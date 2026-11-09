@@ -221,6 +221,38 @@ def test_gate_missing_corpus_is_exit_2(tmp_path, capsys):
     assert "accept" not in captured.out
 
 
+def test_gate_accepts_a_dict_fragment(capsys):
+    page = FIXTURES / "dict_fragment.md"
+    assert main(["gate", "--page", str(page)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "accept"
+    assert "passed 2, failed 0, skipped 0" in captured.out
+    assert "fragments 1" in captured.out
+    assert "reject" not in captured.out
+
+
+def test_gate_rejects_a_fragment_with_a_missing_symbol(capsys):
+    page = FIXTURES / "dict_fragment_missing.md"
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "passed 1, failed 1, skipped 0" in captured.out
+    assert "fragments 1" in captured.out
+    assert f"fail {page}:4 Usd.Foo.Bar" in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_rejects_an_unclosed_call(capsys):
+    page = FIXTURES / "unclosed_call.md"
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "passed 0, failed 1, skipped 0" in captured.out
+    assert "fragments 0" in captured.out
+    assert "'(' was never closed" in captured.out
+    assert "accept" not in captured.out
+
+
 def test_gate_lfs_pointer_is_exit_2(capsys):
     page = FIXTURES / "cell_pointer.md"
     assert main(["gate", "--page", str(page)]) == 2

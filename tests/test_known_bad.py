@@ -22,14 +22,15 @@ def test_gate_rejects_usda_in_python_fence(capsys):
     assert "accept" not in captured.out
 
 
-def test_gate_rejects_py_fragment(capsys):
+def test_gate_accepts_dedented_py_fragment(capsys):
     page = CASES / "fragment_py.md"
-    assert main(["gate", "--page", str(page)]) == 1
+    assert main(["gate", "--page", str(page)]) == 0
     captured = capsys.readouterr()
-    assert captured.out.splitlines()[0] == "reject"
-    assert "passed 0, failed 1, skipped 0" in captured.out
-    assert "unexpected indent" in captured.out
-    assert "accept" not in captured.out
+    assert captured.out.splitlines()[0] == "accept"
+    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "fragments 1" in captured.out
+    assert "unexpected indent" not in captured.out
+    assert "reject" not in captured.out
 
 
 def test_gate_rejects_prim_range_cell(capsys):

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pxr import Usd
 
-from usd_docs_health.static import Finding
+from usd_docs_health.static import FRAGMENT_REASONS, Finding
 
 HEALTH_ORDER = {"unhealthy": 0, "incomplete": 1, "healthy": 2}
 
@@ -36,6 +36,19 @@ _REFERENCED_NOT_SCANNED = re.compile(
     r"^[ \t]*```\{(?:include|literalinclude)\}(?:[ \t]|$)",
     re.MULTILINE,
 )
+
+
+def count_fragments(findings: list[Finding]) -> int:
+    """Count parse findings that passed only after a fragment retry.
+
+    The parse finding is already a pass. This tally is separate from
+    passed, failed, and skipped.
+    """
+    return sum(
+        1
+        for item in findings
+        if item.symbol is None and item.reason in FRAGMENT_REASONS
+    )
 
 
 def count_referenced_not_scanned(page: Path) -> int:
@@ -83,6 +96,7 @@ def build_report(
         "failed": failed,
         "skipped": skipped,
         "usd2gltf_calls": usd2gltf_calls,
+        "fragments": count_fragments(findings),
         "referenced_not_scanned": referenced_not_scanned,
         "pages_no_eligible_checks": no_eligible,
         "pages": page_rows,

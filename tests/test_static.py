@@ -76,3 +76,121 @@ def test_two_symbols_add_one_finding_each():
 def test_other_labels_stay_closed():
     findings = check_fences(PAGES / "closed_fences.md")
     assert findings == []
+
+
+def test_wrapped_dict_fragment_keeps_the_lesson_line():
+    findings = check_fences(PAGES / "dict_fragment.md")
+    assert len(findings) == 2
+    parse, symbol = findings
+    assert parse.status == "pass", parse
+    assert parse.symbol is None
+    assert parse.line == 4
+    assert parse.reason == "fragment, parsed as dict entry"
+    assert symbol.status == "pass", symbol
+    assert symbol.symbol == "Usd.Stage.Open"
+    assert symbol.line == 5
+    assert symbol.reason == ""
+
+
+def test_wrapped_list_fragment_keeps_the_lesson_line():
+    findings = check_fences(PAGES / "list_fragment.md")
+    assert len(findings) == 2
+    parse, symbol = findings
+    assert parse.status == "pass", parse
+    assert parse.symbol is None
+    assert parse.line == 4
+    assert parse.reason == "fragment, parsed as list item"
+    assert symbol.status == "pass", symbol
+    assert symbol.symbol == "Usd.Stage.Open"
+    assert symbol.line == 5
+    assert symbol.reason == ""
+
+
+def test_fragment_still_checks_a_missing_symbol_on_the_lesson_line():
+    findings = check_fences(PAGES / "dict_fragment_missing.md")
+    assert len(findings) == 2
+    parse, symbol = findings
+    assert parse.status == "pass", parse
+    assert parse.symbol is None
+    assert parse.line == 4
+    assert parse.reason == "fragment, parsed as dict entry"
+    assert symbol.status == "fail", symbol
+    assert symbol.symbol == "Usd.Foo.Bar"
+    assert symbol.line == 4
+
+
+def test_unclosed_call_keeps_the_original_parse_error():
+    findings = check_fences(PAGES / "unclosed_call.md")
+    assert len(findings) == 1
+    assert findings[0].status == "fail"
+    assert findings[0].symbol is None
+    assert findings[0].line == 4
+    assert findings[0].reason == "'(' was never closed"
+
+
+def test_indented_tuple_parses_as_dedented():
+    page = Path(__file__).parent / "fixtures" / "known_bad" / "fragment_py.md"
+    findings = check_fences(page)
+    assert len(findings) == 1
+    assert findings[0].status == "pass", findings[0]
+    assert findings[0].symbol is None
+    assert findings[0].line == 6
+    assert findings[0].reason == "fragment, parsed as dedented"
+
+
+def test_relocates_line_95_parses_as_dedented():
+    page = (
+        Path(__file__).resolve().parents[1]
+        / "vendor"
+        / "learnopenusd"
+        / "docs"
+        / "creating-composition-arcs"
+        / "relocates"
+        / "working-with-relocates.md"
+    )
+    findings = check_fences(page)
+    parse = [item for item in findings if item.symbol is None and item.line == 95]
+    assert len(parse) == 1
+    assert parse[0].status == "pass", parse[0]
+    assert parse[0].reason == "fragment, parsed as dedented"
+    symbols = [item for item in findings if item.symbol and item.line == 95]
+    assert {item.symbol for item in symbols} == {"Sdf.Path", "Sdf.Path.emptyPath"}
+    assert all(item.status == "pass" for item in symbols)
+    other = [item for item in findings if item.symbol is None and item.line != 95]
+    assert other
+    assert all(item.status == "pass" and item.reason == "" for item in other)
+
+
+def test_workstreams_line_92_parses_as_dict_entry():
+    page = (
+        Path(__file__).resolve().parents[1]
+        / "vendor"
+        / "learnopenusd"
+        / "docs"
+        / "asset-structure"
+        / "workstreams"
+        / "adding-user-workstreams.md"
+    )
+    findings = check_fences(page)
+    parse = [item for item in findings if item.symbol is None and item.line == 92]
+    assert len(parse) == 1
+    assert parse[0].status == "pass", parse[0]
+    assert parse[0].reason == "fragment, parsed as dict entry"
+    assert not any(item.symbol and item.line == 92 for item in findings)
+
+
+def test_references_usda_still_fails():
+    page = (
+        Path(__file__).resolve().parents[1]
+        / "vendor"
+        / "learnopenusd"
+        / "docs"
+        / "composition-basics"
+        / "references.md"
+    )
+    findings = check_fences(page)
+    failed = [item for item in findings if item.status == "fail"]
+    assert len(failed) == 1
+    assert failed[0].symbol is None
+    assert failed[0].line == 86
+    assert failed[0].reason == "expected '('"

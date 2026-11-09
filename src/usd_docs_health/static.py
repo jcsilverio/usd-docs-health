@@ -2,10 +2,20 @@
 
 import ast
 import importlib
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
 USD_MODULES = {"Usd", "Sdf", "UsdGeom", "UsdShade", "UsdLux"}
+
+# Reasons on a parse finding when the fence parsed only after a fragment retry.
+FRAGMENT_REASONS = frozenset(
+    {
+        "fragment, parsed as dedented",
+        "fragment, parsed as list item",
+        "fragment, parsed as dict entry",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -45,7 +55,7 @@ def _python_fences(text: str) -> list[tuple[int, str]]:
 
 def _check_fence(page: str, content_start: int, source: str) -> list[Finding]:
     try:
-        tree = ast.parse(source)
+        tree, reason, shift = _parse_fence(source)
     except SyntaxError as exc:
         line = content_start + (exc.lineno or 1) - 1
         reason = exc.msg if exc.msg else "parse error"
@@ -64,12 +74,14 @@ def _check_fence(page: str, content_start: int, source: str) -> list[Finding]:
             status="pass",
             symbol=None,
             line=content_start,
-            reason="",
+            reason=reason,
             page=page,
         )
     ]
     for symbol, lineno in _usd_symbols(tree):
-        file_line = content_start + lineno - 1
+        # shift is the wrapper line added so a fragment can be parsed.
+        # That line is not part of the lesson, so it is not reported.
+        file_line = content_start + lineno - 1 - shift
         if _symbol_exists(symbol):
             findings.append(
                 Finding(
@@ -91,6 +103,35 @@ def _check_fence(page: str, content_start: int, source: str) -> list[Finding]:
                 )
             )
     return findings
+
+
+def _parse_fence(source: str) -> tuple[ast.AST, str, int]:
+    """Parse a fence. On failure, retry it as a fragment.
+
+    Returns the tree, the parse reason, and how many lines were added
+    before the lesson text. A fence that parses as written has an empty
+    reason and a shift of 0. The original SyntaxError is raised when the
+    fence and all three fragment tries fail.
+    """
+    try:
+        return ast.parse(source), "", 0
+    except SyntaxError as original:
+        saved = original
+
+    dedented = textwrap.dedent(source)
+    # The bracket or brace is on its own line, so the lesson text starts
+    # one line later in the tree than it does in the file.
+    attempts = (
+        (dedented, "fragment, parsed as dedented", 0),
+        ("[\n" + dedented + "\n]", "fragment, parsed as list item", 1),
+        ("{\n" + dedented + "\n}", "fragment, parsed as dict entry", 1),
+    )
+    for text, reason, shift in attempts:
+        try:
+            return ast.parse(text), reason, shift
+        except SyntaxError:
+            continue
+    raise saved
 
 
 def _usd_symbols(tree: ast.AST) -> list[tuple[str, int]]:

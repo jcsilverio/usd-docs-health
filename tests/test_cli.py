@@ -160,6 +160,7 @@ def test_check_counts_includes_without_scanning_them(tmp_path, capsys):
     assert report["failed"] == 0
     assert report["skipped"] == 0
     assert report["referenced_not_scanned"] == 2
+    assert report["fragments"] == 0
     assert report["pages_no_eligible_checks"] == 1
     rows = {Path(row["page"]).name: row for row in report["pages"]}
     assert rows["valid_dotted_name.md"]["health"] == "healthy"
@@ -182,6 +183,31 @@ def test_check_counts_includes_without_scanning_them(tmp_path, capsys):
     text = capsys.readouterr()
     assert "passed 2, failed 0, skipped 0" in text.out
     assert "referenced, not scanned 2" in text.out
+
+
+def test_fragment_retry_is_a_pass_and_a_separate_tally(tmp_path, capsys):
+    corpus = _corpus_with(tmp_path, "dict_fragment.md")
+    assert main(["check", "--corpus", str(corpus), "--format", "json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["passed"] == 2
+    assert report["failed"] == 0
+    assert report["skipped"] == 0
+    assert report["fragments"] == 1
+    assert report["usd2gltf_calls"] == 0
+    parse = [item for item in report["findings"] if item["symbol"] is None]
+    symbol = [item for item in report["findings"] if item["symbol"]]
+    assert len(parse) == 1
+    assert parse[0]["status"] == "pass"
+    assert parse[0]["reason"] == "fragment, parsed as dict entry"
+    assert parse[0]["line"] == 4
+    assert len(symbol) == 1
+    assert symbol[0]["symbol"] == "Usd.Stage.Open"
+    assert symbol[0]["line"] == 5
+
+    assert main(["check", "--corpus", str(corpus)]) == 0
+    text = capsys.readouterr()
+    assert "passed 2, failed 0, skipped 0" in text.out
+    assert text.out.index("usd2gltf calls 0") < text.out.index("fragments 1")
 
 
 def test_unreferenced_lfs_pointer_is_exit_0(tmp_path):
