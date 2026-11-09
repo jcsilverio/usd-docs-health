@@ -47,31 +47,44 @@ def main(argv=None) -> int:
     return _check(args)
 
 
+def _unexpected_error(page: Path | None) -> int:
+    if page is None:
+        print("unexpected checker error", file=sys.stderr)
+    else:
+        print(f"unexpected checker error: {page}", file=sys.stderr)
+    traceback.print_exc()
+    return 3
+
+
 def _check(args) -> int:
-    corpus = Path(args.corpus)
-    if not corpus.is_dir():
-        print(f"corpus not found: {corpus}", file=sys.stderr)
-        return 2
-
-    docs = corpus / "docs"
-    if not docs.is_dir():
-        print(f"docs directory not found: {docs}", file=sys.stderr)
-        return 2
-
-    pages = sorted(path for path in docs.rglob("*.md") if _is_page(path))
-    pointers = []
-    for page in pages:
-        pointers.extend(pointer_files(page))
-    if pointers:
-        for path in pointers:
-            print(f"LFS pointer file: {path}", file=sys.stderr)
-        return 2
-
-    python_path = _corpus_src(corpus)
-    findings = []
-    usd2gltf_calls = 0
+    page_in_progress = None
     try:
+        corpus = Path(args.corpus)
+        if not corpus.is_dir():
+            print(f"corpus not found: {corpus}", file=sys.stderr)
+            return 2
+
+        docs = corpus / "docs"
+        if not docs.is_dir():
+            print(f"docs directory not found: {docs}", file=sys.stderr)
+            return 2
+
+        pages = sorted(path for path in docs.rglob("*.md") if _is_page(path))
+        pointers = []
         for page in pages:
+            page_in_progress = page
+            pointers.extend(pointer_files(page))
+            page_in_progress = None
+        if pointers:
+            for path in pointers:
+                print(f"LFS pointer file: {path}", file=sys.stderr)
+            return 2
+
+        python_path = _corpus_src(corpus)
+        findings = []
+        usd2gltf_calls = 0
+        for page in pages:
+            page_in_progress = page
             findings.extend(check_fences(page))
             executed = execute_page(page, python_path=python_path)
             usd2gltf_calls += executed.usd2gltf_calls
@@ -79,64 +92,63 @@ def _check(args) -> int:
                 findings.append(
                     _cell_finding(page, item.status, item.line, item.reason)
                 )
-    except Exception:
-        print(f"unexpected checker error: {page}", file=sys.stderr)
-        traceback.print_exc()
-        return 3
+            page_in_progress = None
 
-    if not findings:
-        print("No ordinary python fences or code cells found.", file=sys.stderr)
-        return 2
+        if not findings:
+            print("No ordinary python fences or code cells found.", file=sys.stderr)
+            return 2
 
-    report = build_report(corpus, pages, findings, usd2gltf_calls)
-    failed = report["failed"]
+        report = build_report(corpus, pages, findings, usd2gltf_calls)
+        failed = report["failed"]
 
-    if args.html:
-        html_path = Path(args.html)
-        html_path.write_text(render_page_table(report), encoding="utf-8")
+        if args.html:
+            html_path = Path(args.html)
+            html_path.write_text(render_page_table(report), encoding="utf-8")
 
-    if args.llms:
-        llms_path = Path(args.llms)
-        llms_path.write_text(render_llms_txt(report), encoding="utf-8")
+        if args.llms:
+            llms_path = Path(args.llms)
+            llms_path.write_text(render_llms_txt(report), encoding="utf-8")
 
-    if args.format == "json":
-        print(json.dumps(report, indent=2))
-    else:
-        print(
-            f"passed {report['passed']}, "
-            f"failed {report['failed']}, "
-            f"skipped {report['skipped']}"
-        )
-        print(f"usd2gltf calls {report['usd2gltf_calls']}")
-        print(f"fragments {report['fragments']}")
-        print(f"referenced, not scanned {report['referenced_not_scanned']}")
-        for item in report["findings"]:
-            if item["status"] != "fail":
-                continue
-            name = item["symbol"] if item["symbol"] else ""
+        if args.format == "json":
+            print(json.dumps(report, indent=2))
+        else:
             print(
-                f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip()
+                f"passed {report['passed']}, "
+                f"failed {report['failed']}, "
+                f"skipped {report['skipped']}"
             )
+            print(f"usd2gltf calls {report['usd2gltf_calls']}")
+            print(f"fragments {report['fragments']}")
+            print(f"referenced, not scanned {report['referenced_not_scanned']}")
+            for item in report["findings"]:
+                if item["status"] != "fail":
+                    continue
+                name = item["symbol"] if item["symbol"] else ""
+                print(
+                    f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip()
+                )
 
-    return 1 if failed else 0
+        return 1 if failed else 0
+    except Exception:
+        return _unexpected_error(page_in_progress)
 
 
 def _gate(page: Path, corpus: Path | None) -> int:
-    if not page.is_file():
-        print(f"page not found: {page}", file=sys.stderr)
-        return 2
-    if corpus is not None and not corpus.is_dir():
-        print(f"corpus not found: {corpus}", file=sys.stderr)
-        return 2
-
-    pointers = pointer_files(page)
-    if pointers:
-        for path in pointers:
-            print(f"LFS pointer file: {path}", file=sys.stderr)
-        return 2
-
-    python_path = _corpus_src(corpus)
     try:
+        if not page.is_file():
+            print(f"page not found: {page}", file=sys.stderr)
+            return 2
+        if corpus is not None and not corpus.is_dir():
+            print(f"corpus not found: {corpus}", file=sys.stderr)
+            return 2
+
+        pointers = pointer_files(page)
+        if pointers:
+            for path in pointers:
+                print(f"LFS pointer file: {path}", file=sys.stderr)
+            return 2
+
+        python_path = _corpus_src(corpus)
         findings = list(check_fences(page))
         executed = execute_page(page, python_path=python_path)
         usd2gltf_calls = executed.usd2gltf_calls
@@ -144,23 +156,21 @@ def _gate(page: Path, corpus: Path | None) -> int:
             findings.append(_cell_finding(page, item.status, item.line, item.reason))
         referenced = count_referenced_not_scanned(page)
         row = summarize_page(str(page), findings, referenced)
-    except Exception:
-        print(f"unexpected checker error: {page}", file=sys.stderr)
-        traceback.print_exc()
-        return 3
 
-    decision = "accept" if row["health"] == "healthy" else "reject"
-    print(decision)
-    print(
-        f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}"
-    )
-    if decision == "reject":
-        for line in _gate_reasons(findings, referenced):
-            print(line)
-    print(f"usd2gltf calls {usd2gltf_calls}")
-    print(f"fragments {count_fragments(findings)}")
-    print(f"referenced, not scanned {referenced}")
-    return 0 if decision == "accept" else 1
+        decision = "accept" if row["health"] == "healthy" else "reject"
+        print(decision)
+        print(
+            f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}"
+        )
+        if decision == "reject":
+            for line in _gate_reasons(findings, referenced):
+                print(line)
+        print(f"usd2gltf calls {usd2gltf_calls}")
+        print(f"fragments {count_fragments(findings)}")
+        print(f"referenced, not scanned {referenced}")
+        return 0 if decision == "accept" else 1
+    except Exception:
+        return _unexpected_error(page)
 
 
 def _gate_reasons(findings: list[Finding], referenced_not_scanned: int) -> list[str]:
