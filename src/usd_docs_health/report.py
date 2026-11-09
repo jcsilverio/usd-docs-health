@@ -1,5 +1,6 @@
 """Build per-page JSON reports from check findings."""
 
+import re
 import subprocess
 from collections import defaultdict
 from pathlib import Path
@@ -30,6 +31,19 @@ def usd_version_string() -> str:
     return f"{minor}.{patch}"
 
 
+# A MyST directive opener. Option lines such as `:caption:` are not another directive.
+_REFERENCED_NOT_SCANNED = re.compile(
+    r"^[ \t]*```\{(?:include|literalinclude)\}(?:[ \t]|$)",
+    re.MULTILINE,
+)
+
+
+def count_referenced_not_scanned(page: Path) -> int:
+    """Count include and literalinclude directives. Do not open the named file."""
+    text = Path(page).read_text(encoding="utf-8")
+    return len(_REFERENCED_NOT_SCANNED.findall(text))
+
+
 def build_report(
     corpus: Path,
     pages: list[Path],
@@ -42,9 +56,16 @@ def build_report(
 
     page_rows = []
     no_eligible = 0
+    referenced_not_scanned = 0
     for page in pages:
         page_key = str(page)
-        row = summarize_page(page_key, by_page.get(page_key, []))
+        page_referenced = count_referenced_not_scanned(page)
+        referenced_not_scanned += page_referenced
+        row = summarize_page(
+            page_key,
+            by_page.get(page_key, []),
+            page_referenced,
+        )
         if row["health"] == "incomplete" and row["first_reason"] == "no eligible checks":
             no_eligible += 1
         page_rows.append(row)
@@ -62,6 +83,7 @@ def build_report(
         "failed": failed,
         "skipped": skipped,
         "usd2gltf_calls": usd2gltf_calls,
+        "referenced_not_scanned": referenced_not_scanned,
         "pages_no_eligible_checks": no_eligible,
         "pages": page_rows,
         "findings": [
@@ -77,16 +99,25 @@ def build_report(
     }
 
 
-def summarize_page(page: str, findings: list[Finding]) -> dict:
+def summarize_page(
+    page: str,
+    findings: list[Finding],
+    referenced_not_scanned: int = 0,
+) -> dict:
     if not findings:
+        if referenced_not_scanned:
+            reason = "referenced, not scanned"
+        else:
+            reason = "no eligible checks"
         return {
             "page": page,
             "health": "incomplete",
             "passed": 0,
             "failed": 0,
             "skipped": 0,
-            "first_reason": "no eligible checks",
+            "first_reason": reason,
             "first_line": None,
+            "referenced_not_scanned": referenced_not_scanned,
         }
 
     passed = sum(1 for item in findings if item.status == "pass")
@@ -118,6 +149,7 @@ def summarize_page(page: str, findings: list[Finding]) -> dict:
             "skipped": skipped,
             "first_reason": "",
             "first_line": None,
+            "referenced_not_scanned": referenced_not_scanned,
         }
 
     return {
@@ -128,6 +160,7 @@ def summarize_page(page: str, findings: list[Finding]) -> dict:
         "skipped": skipped,
         "first_reason": first.reason,
         "first_line": first.line,
+        "referenced_not_scanned": referenced_not_scanned,
     }
 
 

@@ -57,6 +57,75 @@ def test_gate_rejects_page_with_no_eligible_checks(tmp_path, capsys):
     assert lines[0] == "reject"
     assert "passed 0, failed 0, skipped 0" in captured.out
     assert "no eligible checks" in captured.out
+    assert "referenced, not scanned 0" in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_rejects_include_only_page(tmp_path, capsys):
+    page = tmp_path / "exercise.md"
+    page.write_text(
+        "# Exercise\n"
+        "\n"
+        "```{literalinclude} scripts/example.py\n"
+        ":caption: example.py\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+    assert lines[0] == "reject"
+    assert "passed 0, failed 0, skipped 0" in captured.out
+    assert "referenced, not scanned" in lines
+    assert "referenced, not scanned 1" in captured.out
+    assert "no eligible checks" not in captured.out
+    assert "Python" not in captured.out
+    assert "accept" not in captured.out
+    assert not (tmp_path / "scripts" / "example.py").exists()
+
+
+def test_gate_accepts_passing_fence_with_an_include(tmp_path, capsys):
+    page = tmp_path / "mixed.md"
+    page.write_text(
+        "# Mixed\n"
+        "\n"
+        "```py\n"
+        "Usd.Stage.Open()\n"
+        "```\n"
+        "\n"
+        "```{include} notes/venv-table.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "accept"
+    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "referenced, not scanned 1" in captured.out
+    assert "no eligible checks" not in captured.out
+    assert "reject" not in captured.out
+    assert not (tmp_path / "notes" / "venv-table.md").exists()
+
+
+def test_gate_keeps_the_parse_failure_when_an_include_is_present(tmp_path, capsys):
+    page = tmp_path / "proposed.md"
+    page.write_text(
+        "# Proposed\n"
+        "\n"
+        "```py\n"
+        "#usda 1.0\n"
+        'def Xform "World"\n'
+        "```\n"
+        "\n"
+        "```{include} notes/table.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "expected '('" in captured.out
+    assert "referenced, not scanned 1" in captured.out
     assert "accept" not in captured.out
 
 
