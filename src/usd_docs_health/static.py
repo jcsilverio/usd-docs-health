@@ -2,6 +2,7 @@
 
 import ast
 import importlib
+import re
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,7 +42,7 @@ def _python_fences(text: str) -> list[tuple[int, str]]:
     found: list[tuple[int, str]] = []
     index = 0
     while index < len(lines):
-        if lines[index].strip() in {"```python", "```py"}:
+        if re.match(r"^\s*```\s*(python|py)\s*$", lines[index]):
             index += 1
             content_start = index + 1
             body: list[str] = []

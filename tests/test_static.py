@@ -49,6 +49,19 @@ def test_py_fence_names_create_new():
     assert symbol.line == 4
 
 
+def test_spaced_python_fence_names_create_new():
+    findings = check_fences(PAGES / "spaced_python.md")
+    assert len(findings) == 2
+    parse, symbol = findings
+    assert parse.status == "pass", parse
+    assert parse.symbol is None
+    assert parse.line == 4
+    assert parse.reason == ""
+    assert symbol.status == "pass", symbol
+    assert symbol.symbol == "Usd.Stage.CreateNew"
+    assert symbol.line == 4
+
+
 def test_assignment_only_fence_is_a_parse_pass():
     findings = check_fences(PAGES / "assignment_only.md")
     assert len(findings) == 1
@@ -129,7 +142,7 @@ def test_unclosed_call_keeps_the_original_parse_error():
 
 
 def test_indented_tuple_parses_as_dedented():
-    page = Path(__file__).parent / "fixtures" / "known_bad" / "fragment_py.md"
+    page = PAGES / "fragment_py.md"
     findings = check_fences(page)
     assert len(findings) == 1
     assert findings[0].status == "pass", findings[0]
