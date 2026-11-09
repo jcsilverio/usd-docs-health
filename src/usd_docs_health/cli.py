@@ -11,6 +11,7 @@ from usd_docs_health.llms_txt import render_llms_txt
 from usd_docs_health.page_table import render_page_table
 from usd_docs_health.report import (
     build_report,
+    count_fragments,
     count_referenced_not_scanned,
     summarize_page,
 )
@@ -107,6 +108,7 @@ def _check(args) -> int:
             f"skipped {report['skipped']}"
         )
         print(f"usd2gltf calls {report['usd2gltf_calls']}")
+        print(f"fragments {report['fragments']}")
         print(f"referenced, not scanned {report['referenced_not_scanned']}")
         for item in report["findings"]:
             if item["status"] != "fail":
@@ -156,6 +158,7 @@ def _gate(page: Path, corpus: Path | None) -> int:
         for line in _gate_reasons(findings, referenced):
             print(line)
     print(f"usd2gltf calls {usd2gltf_calls}")
+    print(f"fragments {count_fragments(findings)}")
     print(f"referenced, not scanned {referenced}")
     return 0 if decision == "accept" else 1
 

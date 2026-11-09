@@ -27,7 +27,7 @@ python -m pip install -e ".[dev]"
 python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html --llms llms.txt
 ```
 
-The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. That count is not a pass, a fail, or a skip. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
+The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. That count is not a pass, a fail, or a skip. The text summary and the JSON report also count fragment retries beside the intercepted `usd2gltf` calls. That count is not part of the pass, fail, or skipped totals. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
 
 The gate decides whether one proposed page can ship. It reruns the static check and the execution check on that file.
 
@@ -37,13 +37,14 @@ python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenu
 
 `--page` is the Markdown file, including a temporary copy. `--corpus` is optional. Pass it when the page imports lesson helpers from the corpus `src/` directory. The gate prints `accept` when the page is healthy: at least one check ran, every check passed, and nothing was skipped. It prints `reject` when the page is unhealthy or incomplete. A `py` fence that does not parse is a reject. A page with no eligible checks is a reject. A page whose only signal is an `{include}` or `literalinclude` is a reject, with the reason `referenced, not scanned`. You supply the page. The command accepts or rejects that file.
 
-Pytest runs a few handwritten pages through that same command. The gate must reject each one: USDA text in a `python` fence, a `py` fence that holds only an indented fragment, a code cell that calls `prim_range` before that name exists, a visible `create_new_stage()` call with no setup cell, and a wording-only edit of the USDA page. Changing the wording leaves the failing block in place, so that edit is still a reject.
+Pytest runs a few handwritten pages through that same command. The gate must reject USDA text in a `python` fence, a code cell that calls `prim_range` before that name exists, a visible `create_new_stage()` call with no setup cell, and a wording-only edit of the USDA page. Changing the wording leaves the failing block in place, so that edit is still a reject. An indented `py` fragment that parses after its common indent is removed is a pass, not a reject.
 
 ```text
 reject
 passed 0, failed 1, skipped 0
 fail path/to/page.md:4 expected '('
 usd2gltf calls 0
+fragments 0
 referenced, not scanned 0
 ```
 
@@ -86,6 +87,8 @@ Of those 279 passes, 214 are dotted names in `py` fences and 65 are dotted names
 
 `skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives are not findings. They are counted separately as referenced, not scanned. Names such as `prim.GetReferences()` stay outside this check.
 
+That run did not retry a fence that failed to parse. The checker now retries one as a fragment. The fragment tally is not part of the pass, fail, and skipped totals above. The next corpus run replaces these counts.
+
 ### Fences and code cells
 
 On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command printed:
@@ -104,7 +107,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 ## Limitations
 
 - Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
-- Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that does not parse fails, including an exercise fragment that is not valid Python on its own. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
+- Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that still does not parse after a fragment retry fails. A retry that parses is a pass, counted separately, and the symbol's line stays the line in the lesson. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. The count is not a pass, a fail, or a skip, so a page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."

@@ -78,7 +78,7 @@ The pinned lessons use both labels. Working with Sublayers opens a snippet with 
 
 A label of `python3` stays out. A `{code-block}` directive stays out. Fences labeled `powershell` or `sh` stay out. Working with Sublayers uses those last two for terminal commands. A shell command parsed as Python would fail for the wrong reason.
 
-MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary fences labeled `python` or `py` are displayed and never executed by the build. Some are fragments with undefined variables, so v0 doesn't run them either. The static check parses each one as Python and checks its USD symbols (Section 3.4). A fence with either label that doesn't parse fails, and the parse error is the reason. A reader who copies it gets something that isn't Python.
+MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary fences labeled `python` or `py` are displayed and never executed by the build. Some are fragments with undefined variables, so v0 doesn't run them either. The static check parses each one as Python and checks its USD symbols (Section 3.4). A fence that still does not parse after the fragment tries (Section 3.5) fails, and the original parse error is the reason. A reader who copies that fence gets something that isn't Python.
 
 ### 3.2 How code cells run
 
@@ -114,6 +114,28 @@ That means only names reached through a module are checked. Instance methods suc
 Dynamic references such as `getattr(Usd.Stage, name)` are out of scope for v0. The checker doesn't guess the value of `name`. Dynamic lookups are excluded from symbol validation rather than reported as missing APIs.
 
 Each finding must include the page, source location, referenced symbol or parse error, and reason for failure.
+
+### 3.5 Exercise fragments
+
+Some lesson fences are Python fragments for a larger script. Any ordinary `python` or `py` fence that fails to parse gets the same three tries, in order. The fence is still not executed. It should not fail simply because it is not a complete Python script.
+
+1. Remove common leading indentation (dedent).
+2. Wrap the dedented text in square brackets (`[` and `]`), each on its own line, to test whether it is a list item.
+3. Wrap the dedented text in curly braces (`{` and `}`), each on its own line, to test whether it is a dictionary entry.
+
+Stop at the first successful parse. Treat the fence as a fragment, check its dotted USD names as usual, and record the parse as a pass with one of these reasons:
+
+- `fragment, parsed as dedented`
+- `fragment, parsed as list item`
+- `fragment, parsed as dict entry`
+
+The line in the finding is the line in the lesson. The bracket on its own line is there so the fragment can be parsed, and that extra line is not reported.
+
+If all three attempts fail, report the original parse error and its line in the lesson. No other transformations are allowed.
+
+The report counts these fragments beside the intercepted `usd2gltf` calls (Section 3.3). The count is separate from the pass, fail, and skipped totals. The parse finding is the pass, so a reader can see how many passing fences required a retry.
+
+**Fragments are not skipped.** They still receive the normal USD name checks.
 
 ## 4. Results and exit codes
 
@@ -218,8 +240,6 @@ For v0, **checker failures fail the CI job, and known corpus failures are report
 
 The corpus step sets `pipefail`, a shell setting that makes a pipeline report the check command's exit code when that output is piped into `tee`. Exit code 1 still lets the job pass. Exit codes 2 and 3 still fail the job.
 
-The README tables now show 65 passed and 1 failed for fences, and 208 passed and 1 failed for fences and code cells. Those figures come from the fences the parser already recognized. The next full corpus run replaces them with whatever that run reports.
-
 The corpus report and the page table are available as CI artifacts, with a summary of failures and skipped examples. Once I've run the pinned corpus, the README shows the real baseline, and it says plainly that a green CI badge means the checker passed its own validation, not that every upstream example is healthy.
 
 Making corpus regressions a blocking gate later would be a separate decision, with a documented baseline.
@@ -266,11 +286,10 @@ Coding agents propose implementation code and tests. I inspect the changes, repr
 
 These implementation details are still open.
 
-- Whether deliberate pseudo-code fences need a skip rule, once the next corpus run shows whether any fail to parse.
 - The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
 - The timeout values and resource limits, to be set and tested during implementation.
 
-The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when its opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out.
+The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when its opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out. A fence that fails to parse is retried as a fragment (Section 3.5). It is not skipped.
 
 Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
 
