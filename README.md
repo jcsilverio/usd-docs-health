@@ -66,7 +66,7 @@ For `check`, exit code 0 means the run finished and no executed check failed. Pa
 
 ## Results
 
-Counts below are findings, not pages. A finding is one dotted name that resolved, one fence that failed to parse, or one code cell. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
+Counts below are from that corpus run. They are findings, not pages. In that run, a finding is one dotted name that resolved, one fence that failed to parse, or one code cell. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
 
 ### Fences only
 
@@ -104,7 +104,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 ## Limitations
 
 - Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
-- Ordinary `python` and `py` fences are parsed and checked for module-dotted names. A fence that does not parse fails, including an exercise fragment that is not valid Python on its own. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code. A fence that parses and names no module-dotted USD symbol adds no finding. Ten of the incomplete pages contain such a `python` fence.
+- Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that does not parse fails, including an exercise fragment that is not valid Python on its own. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. The count is not a pass, a fail, or a skip, so a page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."

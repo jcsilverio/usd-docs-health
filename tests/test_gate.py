@@ -11,7 +11,7 @@ def test_gate_accepts_a_py_fence(capsys):
     captured = capsys.readouterr()
     lines = captured.out.splitlines()
     assert lines[0] == "accept"
-    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "passed 2, failed 0, skipped 0" in captured.out
     assert "usd2gltf calls 0" in captured.out
     assert "reject" not in captured.out
 
@@ -100,11 +100,42 @@ def test_gate_accepts_passing_fence_with_an_include(tmp_path, capsys):
     assert main(["gate", "--page", str(page)]) == 0
     captured = capsys.readouterr()
     assert captured.out.splitlines()[0] == "accept"
-    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "passed 2, failed 0, skipped 0" in captured.out
     assert "referenced, not scanned 1" in captured.out
     assert "no eligible checks" not in captured.out
     assert "reject" not in captured.out
     assert not (tmp_path / "notes" / "venv-table.md").exists()
+
+
+def test_gate_accepts_an_assignment_only_fence(capsys):
+    page = FIXTURES / "assignment_only.md"
+    assert main(["gate", "--page", str(page)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "accept"
+    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "reject" not in captured.out
+
+
+def test_gate_rejects_a_parsed_fence_when_a_cell_fails(tmp_path, capsys):
+    page = tmp_path / "mixed.md"
+    page.write_text(
+        "# Mixed\n"
+        "\n"
+        "```python\n"
+        "x = 1\n"
+        "```\n"
+        "\n"
+        "```{code-cell}\n"
+        'raise RuntimeError("broken cell")\n'
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "passed 1, failed 1, skipped 0" in captured.out
+    assert "broken cell" in captured.out
+    assert "accept" not in captured.out
 
 
 def test_gate_keeps_the_parse_failure_when_an_include_is_present(tmp_path, capsys):

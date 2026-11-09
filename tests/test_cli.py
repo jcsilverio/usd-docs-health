@@ -156,7 +156,7 @@ def test_check_counts_includes_without_scanning_them(tmp_path, capsys):
     )
     captured = capsys.readouterr()
     report = json.loads(captured.out)
-    assert report["passed"] == 1
+    assert report["passed"] == 2
     assert report["failed"] == 0
     assert report["skipped"] == 0
     assert report["referenced_not_scanned"] == 2
@@ -180,7 +180,7 @@ def test_check_counts_includes_without_scanning_them(tmp_path, capsys):
 
     assert main(["check", "--corpus", str(tmp_path)]) == 0
     text = capsys.readouterr()
-    assert "passed 1, failed 0, skipped 0" in text.out
+    assert "passed 2, failed 0, skipped 0" in text.out
     assert "referenced, not scanned 2" in text.out
 
 
