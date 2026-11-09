@@ -158,16 +158,16 @@ def _gate(page: Path, corpus: Path | None) -> int:
         row = summarize_page(str(page), findings, referenced)
 
         decision = "accept" if row["health"] == "healthy" else "reject"
-        print(decision)
-        print(
-            f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}"
-        )
+        lines = [
+            decision,
+            f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}",
+        ]
         if decision == "reject":
-            for line in _gate_reasons(findings, referenced):
-                print(line)
-        print(f"usd2gltf calls {usd2gltf_calls}")
-        print(f"fragments {count_fragments(findings)}")
-        print(f"referenced, not scanned {referenced}")
+            lines.extend(_gate_reasons(findings, referenced))
+        lines.append(f"usd2gltf calls {usd2gltf_calls}")
+        lines.append(f"fragments {count_fragments(findings)}")
+        lines.append(f"referenced, not scanned {referenced}")
+        print("\n".join(lines))
         return 0 if decision == "accept" else 1
     except Exception:
         return _unexpected_error(page)
