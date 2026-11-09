@@ -23,7 +23,7 @@ def test_gate_rejects_usda_in_python_fence(capsys):
 
 
 def test_gate_accepts_dedented_py_fragment(capsys):
-    page = CASES / "fragment_py.md"
+    page = Path(__file__).parent / "fixtures" / "pages" / "fragment_py.md"
     assert main(["gate", "--page", str(page)]) == 0
     captured = capsys.readouterr()
     assert captured.out.splitlines()[0] == "accept"

@@ -27,7 +27,7 @@ python -m pip install -e ".[dev]"
 python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html --llms llms.txt
 ```
 
-The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. That count is not a pass, a fail, or a skip. The text summary and the JSON report also count fragment retries beside the intercepted `usd2gltf` calls. That count is not part of the pass, fail, or skipped totals. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
+The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. The text summary and the JSON report also count fragment retries beside the intercepted `usd2gltf` calls. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
 
 The gate decides whether one proposed page can ship. It reruns the static check and the execution check on that file.
 
@@ -67,7 +67,7 @@ For `check`, exit code 0 means the run finished and no executed check failed. Pa
 
 ## Results
 
-Counts below are from that corpus run. They are findings, not pages. In that run, a finding is one fence that parsed, one fence that failed to parse, one dotted name that resolved, or one code cell. A fragment retry is a fence that parsed. That parse finding is a pass, and the fragment tally counts it again beside the intercepted `usd2gltf` calls. The fragment tally is not part of the pass, fail, or skipped totals. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
+Counts below are from that corpus run. They are findings, not pages. A finding is one parse result per fence, one lookup per dotted name, or one code cell. Fragment retries, intercepted `usd2gltf` calls, and referenced-not-scanned directives are counted beside those findings. That tally is not part of the pass, fail, or skipped totals. A fragment retry is also a parse pass, so that fence is in the pass total and in the fragment tally. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
 
 ### Fences only
 
@@ -75,32 +75,32 @@ Static check of ordinary `python` and `py` fences. These numbers do not include 
 
 | Item | Value |
 |---|---|
-| Passed | 395 |
+| Passed | 400 |
 | Failed | 1 |
 | Skipped | 0 |
 
-Of those 395 passes, 114 are parse findings and 281 are dotted names. 216 of the dotted names are in `py` fences and 65 are in `python` fences. 56 of the parse findings are `py` fences and 58 are `python` fences. Two of the `py` parse findings parsed only after a fragment retry. The other 112 fences parsed on the first try. The one failure is a parse error. Every dotted USD name that was checked was found in the installed modules.
+Of those 400 passes, 115 are parse findings and 285 are dotted names. 216 of the dotted names are in `py` fences and 69 are in `python` fences. 56 of the parse findings are `py` fences and 59 are `python` fences. Two of the `py` parse findings parsed only after a fragment retry. The other 113 fences parsed on the first try. The one failure is a parse error. Every dotted USD name that was checked was found in the installed modules.
 
 - `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`.
 - `vendor/learnopenusd/docs/asset-structure/workstreams/adding-user-workstreams.md`, line 92. A `py` fence holds one dictionary entry, `"roof": {"diffuseColor": (0.0, 0.0, 1.0), "roughness": 1.0, "metallic": 1.0},`. It parses as a fragment, with reason `fragment, parsed as dict entry`. That fence names no dotted USD symbol.
 - `vendor/learnopenusd/docs/creating-composition-arcs/relocates/working-with-relocates.md`, line 95. A `py` fence holds one indented entry, meant to be added to a larger list. It parses as a fragment, with reason `fragment, parsed as dedented`. `Sdf.Path` and `Sdf.Path.emptyPath` on that line also pass.
 
-`skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives are not findings. They are counted separately as referenced, not scanned. Names such as `prim.GetReferences()` stay outside this check.
+`skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives are not findings. They are the referenced-not-scanned tally. Names such as `prim.GetReferences()` stay outside this check.
 
-`fragments 2` counts the two fragment retries above. That tally is not part of the pass, fail, and skipped totals.
+`fragments 2` counts the two fragment retries above.
 
 ### Fences and code cells
 
 On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command reported:
 
 ```text
-passed 538, failed 1, skipped 0
+passed 543, failed 1, skipped 0
 usd2gltf calls 32
 fragments 2
 referenced, not scanned 31
 ```
 
-The one failure is the fence above. Every code cell passed. The 538 is 395 fence passes plus 143 code-cell passes. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 538, and it is not a pass of the glTF conversion. `fragments 2` is the same two retries, and it is not part of the 538. `referenced, not scanned 31` counts `{include}` and `literalinclude` directives. That tally is not a pass, a fail, or a skip.
+The one failure is the fence above. Every code cell passed. The 543 is 400 fence passes plus 143 code-cell passes. `usd2gltf calls 32` counts intercepted converter calls. It is not a pass of the glTF conversion. `fragments 2` is the same two retries. `referenced, not scanned 31` counts `{include}` and `literalinclude` directives.
 
 The checker discovered 147 lesson pages. 64 were healthy, 1 was unhealthy, and 82 were incomplete. 76 incomplete pages had the reason "no eligible checks." 6 had the reason "referenced, not scanned."
 
@@ -112,7 +112,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 - Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that still does not parse after a fragment retry fails. A retry that parses is a pass, counted separately, and the symbol's line stays the line in the lesson. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
 - Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
-- Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. The count is not a pass, a fail, or a skip, so a page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."
+- Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. A page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."
 - There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command. `llms.txt` comes from `--llms` on that same command.
 - `gate` judges one Markdown file with the same two checks. The rest of the corpus stays unread.
 

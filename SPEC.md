@@ -70,7 +70,7 @@ Both checks scan Markdown files under the pinned corpus's `docs/` directory (`ve
 
 The extractor recognizes three things.
 
-- An ordinary fence whose opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``
+- An ordinary fence whose first word after the backticks is `python` or `py`. Spaces before the backticks, between the backticks and the word, and after the word still count. `` ``` python `` and `` ``` py `` count. `` ```python3 `` does not, because that word is `python3`.
 - A MyST `{code-cell}` directive that contains Python
 - Cell metadata, such as the `remove-input` tag on hidden setup cells
 
@@ -180,15 +180,18 @@ Exit code `0` doesn't mean every page is healthy. It means the runner completed,
 
 ## 5. CLI and local workflow
 
-v0 has one entry point:
+v0 has two commands:
 
 ```
 python -m usd_docs_health check --corpus vendor/learnopenusd --format json
+python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenusd
 ```
+
+`check` scans the corpus. `gate` reruns both checks on one page and prints accept or reject.
 
 The distribution name in `pyproject.toml` is `usd-docs-health`. The Python package is `usd_docs_health`, under `src/`, so the repository root and the importable module stay separate.
 
-The CLI produces a readable terminal summary, a JSON report, and a static HTML page table generated from that report. All three include:
+`check` produces a readable terminal summary, a JSON report, and a static HTML page table generated from that report. All three include:
 
 - Corpus commit SHA and USD version
 - Number of pages and code blocks discovered
@@ -259,7 +262,7 @@ v0 defers:
 - Link checking
 - Hosted dashboards and historical trend tracking
 - Automated LLM-generated fixes
-- A full evaluation set: known-bad pages and fixes that measure whether the checks catch what they should
+- A larger evaluation set beyond the handwritten known-bad pages already in the tests
 - A Sphinx documentation site for this repository
 - Weighted health scores
 - Automatic upstream corpus updates
@@ -267,7 +270,7 @@ v0 defers:
 - The contents of files named by `{include}` or `literalinclude`. v0 counts each directive and leaves the named file unread and unrun.
 - Reproducing the full Sphinx build, and dynamic API analysis
 
-These could be useful later, but first the basic checks need to be reproducible and trustworthy. After v0, a gate that decides whether a proposed docs change is safe to ship can build on them.
+These could be useful later, but first the basic checks need to be reproducible and trustworthy. The gate command already reruns both checks on one proposed page.
 
 ## 10. How I'll build it
 
@@ -289,7 +292,7 @@ These implementation details are still open.
 - The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
 - The timeout values and resource limits, to be set and tested during implementation.
 
-The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when its opening line, after surrounding spaces are removed, is `` ```python `` or `` ```py ``. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out. A fence that fails to parse is retried as a fragment (Section 3.5). It is not skipped.
+The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when the first word after the backticks is `python` or `py`. Spaces before the backticks, between the backticks and the word, and after the word still count. `` ``` python `` and `` ``` py `` count. `` ```python3 `` does not, because that word is `python3`. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out. A fence that fails to parse is retried as a fragment (Section 3.5). It is not skipped.
 
 Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
 

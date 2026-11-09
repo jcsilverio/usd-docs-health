@@ -20,10 +20,6 @@ python ./composition_arcs/sublayers/exercise/sublayers_exercise.py
 Usd.Stage.CreateNew("cell.usda")
 ```
 
-``` python
-Usd.Stage.CreateNew("spaced.usda")
-```
-
 ```shell
 echo hello
 ```
