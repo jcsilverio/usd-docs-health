@@ -67,7 +67,7 @@ For `check`, exit code 0 means the run finished and no executed check failed. Pa
 
 ## Results
 
-Counts below are from that corpus run. They are findings, not pages. In that run, a finding is one dotted name that resolved, one fence that failed to parse, or one code cell. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
+Counts below are from that corpus run. They are findings, not pages. In that run, a finding is one fence that parsed, one fence that failed to parse, one dotted name that resolved, or one code cell. A fragment retry is a fence that parsed. That parse finding is a pass, and the fragment tally counts it again beside the intercepted `usd2gltf` calls. The fragment tally is not part of the pass, fail, or skipped totals. The corpus SHA is `fcbb129ca9c4fe01bd3564c2ca6844c37d85c9c2`. The USD version is 26.11.
 
 ### Fences only
 
@@ -75,32 +75,34 @@ Static check of ordinary `python` and `py` fences. These numbers do not include 
 
 | Item | Value |
 |---|---|
-| Passed | 279 |
-| Failed | 3 |
+| Passed | 395 |
+| Failed | 1 |
 | Skipped | 0 |
 
-Of those 279 passes, 214 are dotted names in `py` fences and 65 are dotted names in `python` fences. The three failures are parse errors. Every dotted USD name that was checked was found in the installed modules.
+Of those 395 passes, 114 are parse findings and 281 are dotted names. 216 of the dotted names are in `py` fences and 65 are in `python` fences. 56 of the parse findings are `py` fences and 58 are `python` fences. Two of the `py` parse findings parsed only after a fragment retry. The other 112 fences parsed on the first try. The one failure is a parse error. Every dotted USD name that was checked was found in the installed modules.
 
 - `vendor/learnopenusd/docs/composition-basics/references.md`, line 86. A `python` fence holds USDA text, `def Xform "World"`. Python 3.12 reports `expected '('`.
-- `vendor/learnopenusd/docs/asset-structure/workstreams/adding-user-workstreams.md`, line 92. A `py` fence holds one dictionary entry, `"roof": {"diffuseColor": (0.0, 0.0, 1.0), "roughness": 1.0, "metallic": 1.0},`. Python 3.12 reports `illegal target for annotation`.
-- `vendor/learnopenusd/docs/creating-composition-arcs/relocates/working-with-relocates.md`, line 95. A `py` fence holds one indented list item, meant to be inserted into a larger list. Python 3.12 reports `unexpected indent`.
+- `vendor/learnopenusd/docs/asset-structure/workstreams/adding-user-workstreams.md`, line 92. A `py` fence holds one dictionary entry, `"roof": {"diffuseColor": (0.0, 0.0, 1.0), "roughness": 1.0, "metallic": 1.0},`. It parses as a fragment, with reason `fragment, parsed as dict entry`. That fence names no dotted USD symbol.
+- `vendor/learnopenusd/docs/creating-composition-arcs/relocates/working-with-relocates.md`, line 95. A `py` fence holds one indented entry, meant to be added to a larger list. It parses as a fragment, with reason `fragment, parsed as dedented`. `Sdf.Path` and `Sdf.Path.emptyPath` on that line also pass.
 
 `skipped 0` means the static check has no skip outcome. `{include}` and `literalinclude` directives are not findings. They are counted separately as referenced, not scanned. Names such as `prim.GetReferences()` stay outside this check.
 
-That run did not retry a fence that failed to parse. The checker now retries one as a fragment. The fragment tally is not part of the pass, fail, and skipped totals above. The next corpus run replaces these counts.
+`fragments 2` counts the two fragment retries above. That tally is not part of the pass, fail, and skipped totals.
 
 ### Fences and code cells
 
-On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command printed:
+On that same corpus, after `git -C vendor/learnopenusd lfs pull`, the check command reported:
 
 ```text
-passed 422, failed 3, skipped 0
+passed 538, failed 1, skipped 0
 usd2gltf calls 32
+fragments 2
+referenced, not scanned 31
 ```
 
-The three failures are the fences above. Every code cell passed. The 422 is 279 fence passes plus 143 code-cell passes. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 422, and it is not a pass of the glTF conversion.
+The one failure is the fence above. Every code cell passed. The 538 is 395 fence passes plus 143 code-cell passes. `usd2gltf calls 32` counts intercepted converter calls. That tally is not part of the 538, and it is not a pass of the glTF conversion. `fragments 2` is the same two retries, and it is not part of the 538. `referenced, not scanned 31` counts `{include}` and `literalinclude` directives. That tally is not a pass, a fail, or a skip.
 
-The checker discovered 147 lesson pages. 52 were healthy, 3 were unhealthy, and 92 were incomplete. Every incomplete page had the reason "no eligible checks." Those figures are from that run. `{include}` and `literalinclude` directives are now counted separately, and an include-only page is incomplete with the reason "referenced, not scanned."
+The checker discovered 147 lesson pages. 64 were healthy, 1 was unhealthy, and 82 were incomplete. 76 incomplete pages had the reason "no eligible checks." 6 had the reason "referenced, not scanned."
 
 A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
 
@@ -116,4 +118,4 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 
 ## How this was built
 
-I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. Coding agents drafted checker and test code, and I wrote some of it by hand. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the three fences that fail to parse.
+I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. Coding agents drafted checker and test code, and I wrote some of it by hand. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the one fence that fails to parse.
