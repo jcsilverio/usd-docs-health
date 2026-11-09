@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from usd_docs_health.cli import main
 
 FIXTURES = Path(__file__).parent / "fixtures" / "pages"
@@ -277,3 +279,43 @@ def test_gate_unexpected_error_is_exit_3(tmp_path, monkeypatch, capsys):
     assert "checker broke" in captured.err
     assert "accept" not in captured.out
     assert "reject" not in captured.out
+
+
+def test_gate_pointer_scan_error_is_exit_3(tmp_path, monkeypatch, capsys):
+    page = tmp_path / "page.md"
+    page.write_text("# Hi\n\n```python\nUsd.Stage.Open()\n```\n", encoding="utf-8")
+
+    def boom(path):
+        raise RuntimeError("checker broke")
+
+    monkeypatch.setattr("usd_docs_health.cli.pointer_files", boom)
+    assert main(["gate", "--page", str(page)]) == 3
+    captured = capsys.readouterr()
+    assert "unexpected checker error" in captured.err
+    assert "page.md" in captured.err
+    assert "checker broke" in captured.err
+    assert "accept" not in captured.out
+    assert "reject" not in captured.out
+
+
+def test_gate_summary_crash_is_exit_3_after_accept(tmp_path, monkeypatch, capsys):
+    page = tmp_path / "page.md"
+    page.write_text("# Hi\n\n```python\nUsd.Stage.Open()\n```\n", encoding="utf-8")
+
+    def boom(findings):
+        raise RuntimeError("checker broke")
+
+    monkeypatch.setattr("usd_docs_health.cli.count_fragments", boom)
+    assert main(["gate", "--page", str(page)]) == 3
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "accept"
+    assert "unexpected checker error" in captured.err
+    assert "page.md" in captured.err
+    assert "checker broke" in captured.err
+    assert "fragments " not in captured.out
+
+
+def test_gate_usage_error_is_system_exit():
+    with pytest.raises(SystemExit) as raised:
+        main(["gate"])
+    assert raised.value.code == 2
