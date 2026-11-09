@@ -59,7 +59,15 @@ def _check_fence(page: str, content_start: int, source: str) -> list[Finding]:
             )
         ]
 
-    findings: list[Finding] = []
+    findings: list[Finding] = [
+        Finding(
+            status="pass",
+            symbol=None,
+            line=content_start,
+            reason="",
+            page=page,
+        )
+    ]
     for symbol, lineno in _usd_symbols(tree):
         file_line = content_start + lineno - 1
         if _symbol_exists(symbol):

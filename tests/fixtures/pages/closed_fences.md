@@ -19,3 +19,11 @@ python ./composition_arcs/sublayers/exercise/sublayers_exercise.py
 ```{code-cell}
 Usd.Stage.CreateNew("cell.usda")
 ```
+
+``` python
+Usd.Stage.CreateNew("spaced.usda")
+```
+
+```shell
+echo hello
+```
