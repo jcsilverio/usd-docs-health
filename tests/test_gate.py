@@ -298,9 +298,14 @@ def test_gate_pointer_scan_error_is_exit_3(tmp_path, monkeypatch, capsys):
     assert "reject" not in captured.out
 
 
-def test_gate_summary_crash_is_exit_3_after_accept(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "fence",
+    ["Usd.Stage.Open()\n", 'def Xform "World"\n'],
+    ids=["healthy", "unhealthy"],
+)
+def test_gate_summary_crash_prints_no_decision(tmp_path, monkeypatch, capsys, fence):
     page = tmp_path / "page.md"
-    page.write_text("# Hi\n\n```python\nUsd.Stage.Open()\n```\n", encoding="utf-8")
+    page.write_text(f"# Hi\n\n```python\n{fence}```\n", encoding="utf-8")
 
     def boom(findings):
         raise RuntimeError("checker broke")
@@ -308,11 +313,10 @@ def test_gate_summary_crash_is_exit_3_after_accept(tmp_path, monkeypatch, capsys
     monkeypatch.setattr("usd_docs_health.cli.count_fragments", boom)
     assert main(["gate", "--page", str(page)]) == 3
     captured = capsys.readouterr()
-    assert captured.out.splitlines()[0] == "accept"
+    assert captured.out == ""
     assert "unexpected checker error" in captured.err
     assert "page.md" in captured.err
     assert "checker broke" in captured.err
-    assert "fragments " not in captured.out
 
 
 def test_gate_usage_error_is_system_exit():
