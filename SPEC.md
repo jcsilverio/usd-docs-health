@@ -105,7 +105,7 @@ Every skip must include a specific reason and source location. An example is ski
 
 ### 3.4 Static check of ordinary fences
 
-The second check covers ordinary fences labeled `python` or `py`. No build executes them. For each fence, it first checks that the code parses as Python. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
+The second check covers ordinary fences labeled `python` or `py`. No build executes them. For each fence, it first checks that the code parses as Python. Every fence adds one parse finding. If the fence parses, that finding is a pass, even when the fence names no USD symbol. If it still doesn't parse after the fragment tries (Section 3.5), that finding is a fail. Then it looks for USD API symbols and verifies that they exist in the installed version. Code cells aren't symbol-checked, because running them already exercises the same calls, and checking both would count one bug twice. General Markdown prose, inline backticks, and MyST cross-reference roles aren't scanned yet, which keeps the scope manageable and avoids false positives from descriptive text.
 
 The check starts with modules such as `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. If a code block refers to `Usd.Stage.Open`, the checker resolves that dotted name through the installed `pxr` modules. A fake reference such as `Usd.Foo.Bar` fails. It uses a lightweight static parser and Python introspection, not full type inference.
 
@@ -174,7 +174,7 @@ Authoring Point Instancing has a `literalinclude` and no eligible fence or code 
 | `2` | Setup, configuration, or coverage problem, such as a missing submodule, wrong USD version, missing required LFS assets, or no executable checks in the selected run |
 | `3` | Unexpected runner or internal tool error |
 
-If the page loop raises an unexpected error, the command catches it and returns 3. If a run hits more than one of these, it returns the most serious one, in the order 3, then 2, then 1, then 0.
+Once the arguments are parsed, an unexpected error anywhere in the run returns 3, in both `check` and `gate`. In `check`, that covers the page search, the LFS pointer scan, the page loop, the report, the HTML and `llms.txt` files, and the final summary. In `gate`, it covers the same steps for one page. A usage error, such as a missing `--corpus` or `--page`, isn't caught. The argument parser exits with code 2. If a run hits more than one of these, it returns the most serious one, in the order 3, then 2, then 1, then 0.
 
 Exit code `0` doesn't mean every page is healthy. It means the runner completed, at least one check executed, and no executed checks failed. Pages with skipped checks are still marked incomplete, and the report must show that coverage gap rather than claim the whole corpus is healthy. The command never returns success if it couldn't load the corpus, verify its environment, or execute any checks.
 
