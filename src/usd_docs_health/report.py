@@ -8,6 +8,7 @@ from pathlib import Path
 from pxr import Usd
 
 from usd_docs_health.static import FRAGMENT_REASONS, Finding
+from usd_docs_health.usda import METADATA_REASON
 
 HEALTH_ORDER = {"unhealthy": 0, "incomplete": 1, "healthy": 2}
 
@@ -47,7 +48,8 @@ def count_fragments(findings: list[Finding]) -> int:
     return sum(
         1
         for item in findings
-        if item.symbol is None and item.reason in FRAGMENT_REASONS
+        if item.symbol is None
+        and (item.reason in FRAGMENT_REASONS or item.reason == METADATA_REASON)
     )
 
 
@@ -62,7 +64,9 @@ def build_report(
     pages: list[Path],
     findings: list[Finding],
     usd2gltf_calls: int,
+    elided: dict[str, int] | None = None,
 ) -> dict:
+    elided = elided or {}
     by_page: dict[str, list[Finding]] = defaultdict(list)
     for item in findings:
         by_page[item.page].append(item)
@@ -70,14 +74,18 @@ def build_report(
     page_rows = []
     no_eligible = 0
     referenced_not_scanned = 0
+    elided_total = 0
     for page in pages:
         page_key = str(page)
         page_referenced = count_referenced_not_scanned(page)
         referenced_not_scanned += page_referenced
+        page_elided = elided.get(page_key, 0)
+        elided_total += page_elided
         row = summarize_page(
             page_key,
             by_page.get(page_key, []),
             page_referenced,
+            page_elided,
         )
         if row["health"] == "incomplete" and row["first_reason"] == "no eligible checks":
             no_eligible += 1
@@ -97,6 +105,7 @@ def build_report(
         "skipped": skipped,
         "usd2gltf_calls": usd2gltf_calls,
         "fragments": count_fragments(findings),
+        "elided": elided_total,
         "referenced_not_scanned": referenced_not_scanned,
         "pages_no_eligible_checks": no_eligible,
         "pages": page_rows,
@@ -117,9 +126,12 @@ def summarize_page(
     page: str,
     findings: list[Finding],
     referenced_not_scanned: int = 0,
+    elided: int = 0,
 ) -> dict:
     if not findings:
-        if referenced_not_scanned:
+        if elided:
+            reason = "elided, not parsed"
+        elif referenced_not_scanned:
             reason = "referenced, not scanned"
         else:
             reason = "no eligible checks"
@@ -132,6 +144,7 @@ def summarize_page(
             "first_reason": reason,
             "first_line": None,
             "referenced_not_scanned": referenced_not_scanned,
+            "elided": elided,
         }
 
     passed = sum(1 for item in findings if item.status == "pass")
@@ -164,6 +177,7 @@ def summarize_page(
             "first_reason": "",
             "first_line": None,
             "referenced_not_scanned": referenced_not_scanned,
+            "elided": elided,
         }
 
     return {
@@ -175,6 +189,7 @@ def summarize_page(
         "first_reason": first.reason,
         "first_line": first.line,
         "referenced_not_scanned": referenced_not_scanned,
+        "elided": elided,
     }
 
 
