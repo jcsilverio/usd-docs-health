@@ -4,7 +4,7 @@
 
 `usd-docs-health` checks code examples and API references in NVIDIA's public Learn OpenUSD documentation against one pinned OpenUSD release. It is an independent project. It is not an official NVIDIA tool.
 
-The static check parses ordinary fences labeled `python` or `py` and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run.
+The static check parses ordinary fences labeled `python` or `py` and looks up dotted USD names, such as `Usd.Stage.Open`, in `usd-core` 26.11. It does not run those fences. The same command runs MyST code cells. A cell that calls `DisplayUSD` still flattens the stage. The `usd2gltf` converter is intercepted and counted. It is not run. The USDA check parses each `usda` fence and `{code-block} usda` example with USD's own text parser. It doesn't compose the layer, run anything, or open the asset paths it names.
 
 ## Setup
 
@@ -27,15 +27,15 @@ python -m pip install -e ".[dev]"
 python -m usd_docs_health check --corpus vendor/learnopenusd --format json --html page-table.html --llms llms.txt
 ```
 
-The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. The text summary and the JSON report also count fragment retries beside the intercepted `usd2gltf` calls. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
+The JSON report lists every finding. The text summary, that JSON report, and the page table also count `{include}` and `literalinclude` directives as referenced, not scanned. The text summary and the JSON report also count fragment retries and elided USDA examples beside the intercepted `usd2gltf` calls. The page table shows the fragment and elided counts too. The `--html` file is a static page table generated from that report: one row per lesson page, failures first, with no score or scripts. The `--llms` file is generated from that same report. It lists the corpus SHA, the USD version, this command, unhealthy pages, and incomplete pages. It is not a hosted file for Learn OpenUSD. CI uploads the JSON report, the page table, and `llms.txt` as artifacts.
 
-The gate decides whether one proposed page can ship. It reruns the static check and the execution check on that file.
+The gate decides whether one proposed page can ship. It reruns the static check, the USDA check, and the execution check on that file.
 
 ```text
 python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenusd
 ```
 
-`--page` is the Markdown file, including a temporary copy. `--corpus` is optional. Pass it when the page imports lesson helpers from the corpus `src/` directory. The gate prints `accept` when the page is healthy: at least one check ran, every check passed, and nothing was skipped. It prints `reject` when the page is unhealthy or incomplete. A `python` or `py` fence that still does not parse after the fragment retries is a reject. A page with no eligible checks is a reject. A page whose only signal is an `{include}` or `literalinclude` is a reject, with the reason `referenced, not scanned`. You supply the page. The command accepts or rejects that file.
+`--page` is the Markdown file, including a temporary copy. `--corpus` is optional. Pass it when the page imports lesson helpers from the corpus `src/` directory. The gate prints `accept` when the page is healthy: at least one check ran, every check passed, and nothing was skipped. It prints `reject` when the page is unhealthy or incomplete. A `python` or `py` fence that still does not parse after the fragment retries is a reject. A page with no eligible checks is a reject. A page whose only signal is an `{include}` or `literalinclude` is a reject, with the reason `referenced, not scanned`. A USDA example that doesn't parse, or that has a non-breaking space (U+00A0), is a reject. A page whose only USDA examples are elided is a reject, with the reason `elided, not parsed`. You supply the page. The command accepts or rejects that file.
 
 Pytest runs a few handwritten pages through that same command. The gate must reject USDA text in a `python` fence, a code cell that calls `prim_range` before that name exists, a visible `create_new_stage()` call with no setup cell, and a wording-only edit of the USDA page. Changing the wording leaves the failing block in place, so that edit is still a reject. An indented `py` fragment that parses after its common indent is removed is a pass, not a reject.
 
@@ -45,6 +45,7 @@ passed 0, failed 1, skipped 0
 fail path/to/page.md:4 expected '('
 usd2gltf calls 0
 fragments 0
+elided 0
 referenced, not scanned 0
 ```
 
@@ -58,12 +59,12 @@ The install name is `usd-docs-health`. The Python package is `usd_docs_health`, 
 |---|---|
 | 0 | The run finished, at least one check ran, and no executed check failed |
 | 1 | One or more documentation checks failed |
-| 2 | Setup or coverage problem, such as a missing corpus, a docs folder with no ordinary `python` or `py` fences and no code cells, or a code cell that needs an LFS pointer file |
+| 2 | Setup or coverage problem, such as a missing corpus, a docs folder with nothing to check (no ordinary `python` or `py` fences, no code cells, and no USDA examples), or a code cell that needs an LFS pointer file |
 | 3 | Unexpected error in the tool |
 
 If more than one applies, the code is the most serious: 3, then 2, then 1, then 0.
 
-For `check`, exit code 0 means the run finished and no executed check failed. Pages with skipped checks stay incomplete. For `gate`, exit code 0 means that one page is healthy. Exit code 1 means `reject`, including a page with no eligible checks or a skipped check. Exit code 2 means the page is missing, the corpus path is missing, or a code cell needs an LFS pointer file. Exit code 3 means an unexpected error.
+For `check`, exit code 0 means the run finished and no executed check failed. Pages with skipped checks stay incomplete. For `gate`, exit code 0 means that one page is healthy. Exit code 1 means `reject`, including a page with no eligible checks, a skipped check, or only elided USDA examples. Exit code 2 means the page is missing, the corpus path is missing, or a code cell needs an LFS pointer file. Exit code 3 means an unexpected error.
 
 ## Results
 
@@ -104,17 +105,18 @@ The one failure is the fence above. Every code cell passed. The 543 is 400 fence
 
 The checker discovered 147 lesson pages. 64 were healthy, 1 was unhealthy, and 82 were incomplete. 76 incomplete pages had the reason "no eligible checks." 6 had the reason "referenced, not scanned."
 
-A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
+A green CI run means pytest passed and the corpus check finished with exit code 0 or 1. Exit code 1 means a fence, a USDA example, or a code cell failed. It does not mean every lesson passed. CI runs `git -C vendor/learnopenusd lfs pull` before that check. If a code cell still needs a pointer file, the check exits 2.
 
 ## Limitations
 
 - Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
 - Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that still does not parse after a fragment retry fails. A retry that parses is a pass, counted separately, and the symbol's line stays the line in the lesson. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
-- Lesson assets in Git LFS are not required for the static check. CI pulls those assets before the corpus check.
+- USDA examples are parsed, not composed or run, and the asset paths they name aren't opened. An example that fails to parse and has a literal `...` outside a quoted string is elided. It's counted, and it adds no finding. A non-breaking space (U+00A0) is a fail even when the rest of the example parses, because a reader who copies it gets text USD rejects. One retry wraps the example as layer metadata. A retry that parses is a pass, counted with the fragments.
+- Lesson assets in Git LFS aren't required for the static check or the USDA check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. A page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."
 - There is no score and no hosted dashboard. The local static page table comes from `--html` on the check command. `llms.txt` comes from `--llms` on that same command.
-- `gate` judges one Markdown file with the same two checks. The rest of the corpus stays unread.
+- `gate` judges one Markdown file with the same three checks. The rest of the corpus stays unread.
 
 ## How this was built
 

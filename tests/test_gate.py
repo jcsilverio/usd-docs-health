@@ -323,3 +323,89 @@ def test_gate_usage_error_is_system_exit():
     with pytest.raises(SystemExit) as raised:
         main(["gate"])
     assert raised.value.code == 2
+
+
+def test_gate_rejects_a_variant_sets_typo(capsys):
+    page = FIXTURES / "usda_variant_sets.md"
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "passed 0, failed 1, skipped 0" in captured.out
+    assert f"fail {page}:5 " in captured.out
+    assert "Expected }" in captured.out
+    assert "elided 0" in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_rejects_a_non_breaking_space(tmp_path, capsys):
+    page = tmp_path / "proposed.md"
+    page.write_text(
+        "# Proposed\n"
+        "\n"
+        "```usda\n"
+        "#usda 1.0\n"
+        "\n"
+        'def Xform "World"\n'
+        "{\n"
+        "\u00a0\u00a0  custom int x = 1\n"
+        "}\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "reject"
+    assert "passed 0, failed 1, skipped 0" in captured.out
+    assert "non-breaking space (U+00A0) at line 8" in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_rejects_a_page_whose_only_usda_is_elided(capsys):
+    page = FIXTURES / "usda_elided.md"
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+    assert lines[0] == "reject"
+    assert "passed 0, failed 0, skipped 0" in captured.out
+    assert "elided, not parsed" in lines
+    assert "elided 1" in captured.out
+    assert "no eligible checks" not in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_names_elided_over_an_include(tmp_path, capsys):
+    page = tmp_path / "exercise.md"
+    page.write_text(
+        "# Exercise\n"
+        "\n"
+        "```usda\n"
+        'def Xform "World"\n'
+        "{\n"
+        "    ...\n"
+        "}\n"
+        "```\n"
+        "\n"
+        "```{include} notes/table.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+    assert lines[0] == "reject"
+    assert "elided, not parsed" in lines
+    assert "referenced, not scanned" not in lines
+    assert "referenced, not scanned 1" in captured.out
+    assert "elided 1" in captured.out
+    assert "accept" not in captured.out
+
+
+def test_gate_accepts_a_relocates_excerpt(capsys):
+    page = FIXTURES / "usda_relocates.md"
+    assert main(["gate", "--page", str(page)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines()[0] == "accept"
+    assert "passed 1, failed 0, skipped 0" in captured.out
+    assert "fragments 1" in captured.out
+    assert "elided 0" in captured.out
+    assert "reject" not in captured.out

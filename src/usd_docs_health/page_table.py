@@ -43,6 +43,7 @@ def render_page_table(report: dict) -> str:
     Corpus SHA: <code>{html.escape(report['corpus_sha'])}</code><br>
     USD version: <code>{html.escape(report['usd_version'])}</code><br>
     Passed: {report['passed']} &nbsp; Failed: {report['failed']} &nbsp; Skipped: {report['skipped']}<br>
+    Fragments: {report['fragments']} &nbsp; Elided: {report['elided']}<br>
     Referenced, not scanned: {report['referenced_not_scanned']}
   </p>
   <table>

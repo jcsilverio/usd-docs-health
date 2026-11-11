@@ -16,6 +16,7 @@ from usd_docs_health.report import (
     summarize_page,
 )
 from usd_docs_health.static import Finding, check_fences
+from usd_docs_health.usda import check_usda
 
 
 def main(argv=None) -> int:
@@ -83,9 +84,14 @@ def _check(args) -> int:
         python_path = _corpus_src(corpus)
         findings = []
         usd2gltf_calls = 0
+        elided = {}
         for page in pages:
             page_in_progress = page
             findings.extend(check_fences(page))
+            usda = check_usda(page)
+            findings.extend(usda)
+            if usda.elided:
+                elided[str(page)] = usda.elided
             executed = execute_page(page, python_path=python_path)
             usd2gltf_calls += executed.usd2gltf_calls
             for item in executed:
@@ -95,10 +101,13 @@ def _check(args) -> int:
             page_in_progress = None
 
         if not findings:
-            print("No ordinary python fences or code cells found.", file=sys.stderr)
+            print(
+                "No ordinary python fences, code cells, or USDA examples to check.",
+                file=sys.stderr,
+            )
             return 2
 
-        report = build_report(corpus, pages, findings, usd2gltf_calls)
+        report = build_report(corpus, pages, findings, usd2gltf_calls, elided=elided)
         failed = report["failed"]
 
         if args.html:
@@ -119,6 +128,7 @@ def _check(args) -> int:
             )
             print(f"usd2gltf calls {report['usd2gltf_calls']}")
             print(f"fragments {report['fragments']}")
+            print(f"elided {report['elided']}")
             print(f"referenced, not scanned {report['referenced_not_scanned']}")
             for item in report["findings"]:
                 if item["status"] != "fail":
@@ -150,12 +160,14 @@ def _gate(page: Path, corpus: Path | None) -> int:
 
         python_path = _corpus_src(corpus)
         findings = list(check_fences(page))
+        usda = check_usda(page)
+        findings.extend(usda)
         executed = execute_page(page, python_path=python_path)
         usd2gltf_calls = executed.usd2gltf_calls
         for item in executed:
             findings.append(_cell_finding(page, item.status, item.line, item.reason))
         referenced = count_referenced_not_scanned(page)
-        row = summarize_page(str(page), findings, referenced)
+        row = summarize_page(str(page), findings, referenced, usda.elided)
 
         decision = "accept" if row["health"] == "healthy" else "reject"
         lines = [
@@ -163,9 +175,10 @@ def _gate(page: Path, corpus: Path | None) -> int:
             f"passed {row['passed']}, failed {row['failed']}, skipped {row['skipped']}",
         ]
         if decision == "reject":
-            lines.extend(_gate_reasons(findings, referenced))
+            lines.extend(_gate_reasons(findings, referenced, usda.elided))
         lines.append(f"usd2gltf calls {usd2gltf_calls}")
         lines.append(f"fragments {count_fragments(findings)}")
+        lines.append(f"elided {usda.elided}")
         lines.append(f"referenced, not scanned {referenced}")
         print("\n".join(lines))
         return 0 if decision == "accept" else 1
@@ -173,8 +186,12 @@ def _gate(page: Path, corpus: Path | None) -> int:
         return _unexpected_error(page)
 
 
-def _gate_reasons(findings: list[Finding], referenced_not_scanned: int) -> list[str]:
+def _gate_reasons(
+    findings: list[Finding], referenced_not_scanned: int, elided: int
+) -> list[str]:
     if not findings:
+        if elided:
+            return ["elided, not parsed"]
         if referenced_not_scanned:
             return ["referenced, not scanned"]
         return ["no eligible checks"]

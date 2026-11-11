@@ -298,3 +298,60 @@ def test_unreferenced_lfs_pointer_is_exit_0(tmp_path):
         encoding="utf-8",
     )
     assert main(["check", "--corpus", str(corpus)]) == 0
+
+
+def test_check_reports_usda_results_and_elided(tmp_path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    for name in ("usda_variant_sets.md", "usda_elided.md", "usda_relocates.md"):
+        (docs / name).write_text(
+            (FIXTURES / name).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    html_path = tmp_path / "page-table.html"
+    llms_path = tmp_path / "llms.txt"
+    assert (
+        main(
+            [
+                "check",
+                "--corpus",
+                str(tmp_path),
+                "--format",
+                "json",
+                "--html",
+                str(html_path),
+                "--llms",
+                str(llms_path),
+            ]
+        )
+        == 1
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert report["passed"] == 1
+    assert report["failed"] == 1
+    assert report["skipped"] == 0
+    assert report["fragments"] == 1
+    assert report["elided"] == 1
+    assert report["pages_no_eligible_checks"] == 0
+    rows = {Path(row["page"]).name: row for row in report["pages"]}
+    assert rows["usda_variant_sets.md"]["health"] == "unhealthy"
+    assert rows["usda_variant_sets.md"]["first_line"] == 5
+    assert "Expected }" in rows["usda_variant_sets.md"]["first_reason"]
+    assert rows["usda_elided.md"]["health"] == "incomplete"
+    assert rows["usda_elided.md"]["first_reason"] == "elided, not parsed"
+    assert rows["usda_elided.md"]["elided"] == 1
+    assert rows["usda_relocates.md"]["health"] == "healthy"
+    assert rows["usda_relocates.md"]["elided"] == 0
+    html = html_path.read_text(encoding="utf-8")
+    assert "Fragments: 1" in html
+    assert "Elided: 1" in html
+    llms = llms_path.read_text(encoding="utf-8")
+    assert "usda_elided.md elided, not parsed" in llms
+    assert "usda_variant_sets.md:5 Expected }" in llms
+    assert "usda_relocates.md" not in llms
+
+    assert main(["check", "--corpus", str(tmp_path)]) == 1
+    text = capsys.readouterr().out
+    assert "passed 1, failed 1, skipped 0" in text
+    assert text.index("fragments 1") < text.index("elided 1")
+    assert "usda_variant_sets.md:5 " in text
+    assert "Expected }" in text
