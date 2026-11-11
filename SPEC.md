@@ -146,6 +146,8 @@ An example is one of two things:
 - An ordinary fence whose first word after the backticks is `usda`. Spaces count the same way as for `python` and `py` (Section 3.1), so `` ``` usda `` counts.
 - A `{code-block}` directive with the argument `usda`. Option lines that start with `:`, such as `:linenos:` and `:emphasize-lines:`, and the blank line after them, are not part of the example.
 
+Blank lines at the start of an example are not part of it either, so step 1 looks for `#usda` on the first line with text. Some lessons open a USDA example with a blank line and then `#usda 1.0`.
+
 Each example is checked in this order.
 
 1. If the example does not start with `#usda`, add the line `#usda 1.0` before it. USD needs that header to read the text. The added line is never reported.
@@ -160,7 +162,7 @@ Each example that is not elided adds one finding:
 - **Otherwise, a pass** when the parse or the retry succeeded.
 - **Otherwise, a fail** with USD's error. When USD reports several errors, the reason lists every message in order. The finding's line comes from the last message, because only the last one says which line failed.
 
-The line in the finding is the line in the lesson. The `#usda 1.0` line is there so USD can read the text, and that extra line is not reported. In a `{code-block}`, counting starts after the options and the blank line. If the retry also fails, report the first parse's error, not the retry's.
+The line in the finding is the line in the lesson. The `#usda 1.0` line is there so USD can read the text, and that extra line is not reported. Counting starts at the first line with text, after any options in a `{code-block}`. If the retry also fails, report the first parse's error, not the retry's.
 
 The report counts elided examples beside the fragments (Section 3.5), the intercepted `usd2gltf` calls (Section 3.3), and the referenced files (Section 4). That count is not a pass, a fail, or a skip. A page whose only signal is an elided example is incomplete, with the reason `elided, not parsed`.
 
