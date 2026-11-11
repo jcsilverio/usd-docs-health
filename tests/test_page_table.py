@@ -16,6 +16,8 @@ def test_page_table_lists_unhealthy_pages_first():
         "failed": 1,
         "skipped": 1,
         "referenced_not_scanned": 0,
+        "fragments": 0,
+        "elided": 0,
         "pages": [
             {
                 "page": "docs/healthy.md",
@@ -215,3 +217,66 @@ def test_build_report_keeps_a_skip_reason_when_the_page_also_includes_a_file(tmp
     assert row["first_reason"] == "earlier cell failed"
     assert row["referenced_not_scanned"] == 1
     assert report["pages_no_eligible_checks"] == 0
+
+
+def test_page_table_header_shows_fragments_and_elided():
+    report = {
+        "corpus_sha": "deadbeef",
+        "usd_version": "26.11",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "referenced_not_scanned": 0,
+        "fragments": 2,
+        "elided": 3,
+        "pages": [],
+    }
+    html = render_page_table(report)
+    assert "Fragments: 2" in html
+    assert "Elided: 3" in html
+    assert html.index("Fragments: 2") < html.index("Elided: 3")
+
+
+def test_build_report_marks_an_elided_only_page_elided_not_parsed(tmp_path):
+    page = tmp_path / "docs" / "elided.md"
+    page.parent.mkdir()
+    page.write_text(
+        "```usda\n"
+        'def Xform "World"\n'
+        "{\n"
+        "    ...\n"
+        "}\n"
+        "```\n"
+        "\n"
+        "```{include} note.md\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    report = build_report(
+        tmp_path, [page], [], usd2gltf_calls=0, elided={str(page): 1}
+    )
+    assert report["elided"] == 1
+    assert report["referenced_not_scanned"] == 1
+    assert report["pages_no_eligible_checks"] == 0
+    row = report["pages"][0]
+    assert row["health"] == "incomplete"
+    assert row["first_reason"] == "elided, not parsed"
+    assert row["elided"] == 1
+    assert row["referenced_not_scanned"] == 1
+
+
+def test_build_report_keeps_a_passing_page_healthy_with_an_elided_example(tmp_path):
+    page = tmp_path / "docs" / "mixed.md"
+    page.parent.mkdir()
+    page.write_text("# Mixed\n", encoding="utf-8")
+    findings = [
+        Finding(status="pass", symbol=None, line=4, reason="", page=str(page))
+    ]
+    report = build_report(
+        tmp_path, [page], findings, usd2gltf_calls=0, elided={str(page): 2}
+    )
+    row = report["pages"][0]
+    assert row["health"] == "healthy"
+    assert row["first_reason"] == ""
+    assert row["elided"] == 2
+    assert report["elided"] == 2
