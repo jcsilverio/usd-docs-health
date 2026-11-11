@@ -12,9 +12,9 @@ While working through Learn OpenUSD hands-on, I ran into three things worth chec
 
 I also noticed that the rendered pages don't say which OpenUSD release they target. The Learn OpenUSD build installs `usd-core` 25.11: its `uv.lock` and the exported `requirements.txt` both pin that version, and `pyproject.toml` sets a floor of 25.5. My local environment runs 26.11. I want to turn observations like these into repeatable checks instead of relying on someone to catch the same problems by hand.
 
-Learn OpenUSD already has CI. On every push and pull request, its workflow builds the site with the lesson code cells executed on `usd-core` 25.11, then runs a pytest suite against the lessons. Two things fall outside it. The same cells may not still run on a newer release. Ordinary fences labeled `python` or `py` are displayed and never executed. v0 runs the same cells on 26.11. It checks those fences without running them. It parses each one as Python and checks USD names reached through a module, such as `Usd.Stage.Open`.
+Learn OpenUSD already has CI. On every push and pull request, its workflow builds the site with the lesson code cells executed on `usd-core` 25.11, then runs a pytest suite against the lessons. Three things fall outside it. The same cells may not still run on a newer release. Ordinary fences labeled `python` or `py` are displayed and never executed. USDA examples are displayed and never parsed. Upstream's tests check the `.usda` files the code cells write, not the examples printed on the page. v0 runs the same cells on 26.11. It checks those fences without running them. It parses each one as Python and checks USD names reached through a module, such as `Usd.Stage.Open`. It parses each USDA example with USD, without composing it.
 
-For v0, the tool checks a fixed snapshot of Learn OpenUSD against `usd-core==26.11`. It runs each lesson's code cells, checks ordinary fences labeled `python` or `py` without running them, and reports what passed, failed, or couldn't be tested. If a check fails, the affected example or page can't be reported as healthy, and skipped examples are reported as skipped, never quietly counted as successes.
+For v0, the tool checks a fixed snapshot of Learn OpenUSD against `usd-core==26.11`. It runs each lesson's code cells, checks ordinary fences labeled `python` or `py` without running them, parses USDA examples without composing them, and reports what passed, failed, or couldn't be tested. If a check fails, the affected example or page can't be reported as healthy, and skipped examples are reported as skipped, never quietly counted as successes.
 
 The three things above don't all map to v0 checks:
 
@@ -58,15 +58,15 @@ The `LearnOpenUSD` repo uses Git LFS for images, videos, and USD assets. A plain
 2. `git submodule update --init --recursive`
 3. `git -C vendor/learnopenusd lfs pull`
 
-CI also initializes submodules and retrieves the LFS files the selected examples need. Only the execution check needs LFS content. The static check reads only the Markdown. Missing LFS content is reported as a setup problem, not as a broken documentation example. The checker detects it by finding LFS pointer files where the execution check needs real assets.
+CI also initializes submodules and retrieves the LFS files the selected examples need. Only the execution check needs LFS content. The static check and the USDA check read only the Markdown. Missing LFS content is reported as a setup problem, not as a broken documentation example. The checker detects it by finding LFS pointer files where the execution check needs real assets.
 
 ## 3. Checks included in v0
 
-v0 has two checks. An execution check runs the MyST code cells. A static check covers ordinary fences labeled `python` or `py`.
+v0 has three checks. An execution check runs the MyST code cells. A static check covers ordinary fences labeled `python` or `py`. A USDA check parses USDA examples (Section 3.6).
 
 ### 3.1 Finding Python examples
 
-Both checks scan Markdown files under the pinned corpus's `docs/` directory (`vendor/learnopenusd/docs/`), not this repository's own files. Learn OpenUSD mixes ordinary fences labeled `python` or `py` with MyST notebook-style code cells. The Stage Traversal lesson is a useful test case. It has both, along with hidden setup code that prepares a USD stage.
+All three checks scan Markdown files under the pinned corpus's `docs/` directory (`vendor/learnopenusd/docs/`), not this repository's own files. Learn OpenUSD mixes ordinary fences labeled `python` or `py` with MyST notebook-style code cells. The Stage Traversal lesson is a useful test case. It has both, along with hidden setup code that prepares a USD stage.
 
 The extractor recognizes three things.
 
@@ -76,7 +76,7 @@ The extractor recognizes three things.
 
 The pinned lessons use both labels. Working with Sublayers opens a snippet with `py`. Earlier lessons open snippets with `python`. Parser tests cover both. v0 doesn't execute `.ipynb` files or reproduce the full Sphinx and MyST-NB build.
 
-A label of `python3` stays out. A `{code-block}` directive stays out. Fences labeled `powershell` or `sh` stay out. Working with Sublayers uses those last two for terminal commands. A shell command parsed as Python would fail for the wrong reason.
+A label of `python3` stays out. A `{code-block}` directive stays out of the Python checks. A `{code-block}` with the argument `usda` is a USDA example (Section 3.6), and so is a fence labeled `usda`. Fences labeled `powershell` or `sh` stay out. Working with Sublayers uses those last two for terminal commands. A shell command parsed as Python would fail for the wrong reason.
 
 MyST code cells are what the Learn OpenUSD build executes, so v0 executes them too (Section 3.2). Ordinary fences labeled `python` or `py` are displayed and never executed by the build. Some are fragments with undefined variables, so v0 doesn't run them either. The static check parses each one as Python and checks its USD symbols (Section 3.4). A fence that still does not parse after the fragment tries (Section 3.5) fails, and the original parse error is the reason. A reader who copies that fence gets something that isn't Python.
 
@@ -137,6 +137,33 @@ The report counts these fragments beside the intercepted `usd2gltf` calls (Secti
 
 **Fragments are not skipped.** They still receive the normal USD name checks.
 
+### 3.6 USDA examples
+
+Many lessons show scene description as USDA, USD's text format, instead of Python. No build parses these examples. A reader who copies one into a `.usda` file expects USD to open it. So v0 parses each one with USD's own parser. It does not compose the layer, run anything, or open the asset paths it names, such as `@./RobotArm.usd@`.
+
+An example is one of two things:
+
+- An ordinary fence whose first word after the backticks is `usda`. Spaces count the same way as for `python` and `py` (Section 3.1), so `` ``` usda `` counts.
+- A `{code-block}` directive with the argument `usda`. Option lines that start with `:`, such as `:linenos:` and `:emphasize-lines:`, and the blank line after them, are not part of the example.
+
+Each example is checked in this order.
+
+1. If the example does not start with `#usda`, add the line `#usda 1.0` before it. USD needs that header to read the text. The added line is never reported.
+2. Replace each non-breaking space (U+00A0) with an ordinary space. A reader can't see that character, and USD rejects it. The example still fails, but USD still checks everything else in it. Failing before the parse would hide a second bug in the same example, which happens on the Introduction to Scenegraph Instance Refinement page.
+3. Parse the text with `Sdf.Layer.CreateAnonymous(".usda").ImportFromString(text)`. USD raises an error when the text does not parse.
+4. If the parse fails and the example contains a literal `...` outside a quoted string, the example is elided: the lesson left part of it out on purpose. It adds no finding and is counted in the `elided` tally.
+5. If the parse fails and the example is not elided, retry once with the text after the header wrapped in `(` and `)`, each on its own line, as layer metadata. A retry that parses is a fragment with the reason `fragment, parsed as layer metadata`, counted in the same `fragments` tally as Section 3.5. Some lessons show only a layer's metadata, such as a `relocates` entry. It should not fail simply because it is not a complete layer. No other retries are allowed.
+
+Each example that is not elided adds one finding:
+
+- **A fail when the example had a non-breaking space.** The reason is `non-breaking space (U+00A0) at line N`, where N is the first such line in the lesson. If the parse still failed, the reason also gives USD's error and its line. The finding's line is N. An example with both a non-breaking space and `...` gets this fail, without USD's error, and is also counted in `elided`, because its USD content still wasn't checked.
+- **Otherwise, a pass** when the parse or the retry succeeded.
+- **Otherwise, a fail** with USD's error. When USD reports several errors, the reason lists every message in order. The finding's line comes from the last message, because only the last one says which line failed.
+
+The line in the finding is the line in the lesson. The `#usda 1.0` line is there so USD can read the text, and that extra line is not reported. In a `{code-block}`, counting starts after the options and the blank line. If the retry also fails, report the first parse's error, not the retry's.
+
+The report counts elided examples beside the fragments (Section 3.5), the intercepted `usd2gltf` calls (Section 3.3), and the referenced files (Section 4). That count is not a pass, a fail, or a skip. A page whose only signal is an elided example is incomplete, with the reason `elided, not parsed`.
+
 ## 4. Results and exit codes
 
 Each individual check has one of three outcomes:
@@ -144,16 +171,16 @@ Each individual check has one of three outcomes:
 | Result | Meaning |
 |---|---|
 | `pass` | The check ran successfully |
-| `fail` | The example failed, a fence didn't parse, or an expected API symbol was missing |
+| `fail` | The example failed, a fence or USDA example didn't parse, or an expected API symbol was missing |
 | `skipped` | The check wasn't run, with a documented reason |
 
 v0 has no warnings and no scoring system.
 
 ### Page-level health
 
-Page-level health combines the execution and static check results for the same Markdown file, so a page can be unhealthy because of a missing API symbol in a fence even when all its code cells passed. A page is one of three things.
+Page-level health combines the execution check, the static check, and the USDA check for the same Markdown file, so a page can be unhealthy because of a missing API symbol in a fence, or a USDA example that doesn't parse, even when all its code cells passed. A page is one of three things.
 
-- **Healthy** when at least one check ran, all checks passed, and nothing was skipped. Intercepted converter calls aren't skips (Section 3.3), and a referenced file that was not scanned isn't a skip either.
+- **Healthy** when at least one check ran, all checks passed, and nothing was skipped. Intercepted converter calls aren't skips (Section 3.3), a referenced file that was not scanned isn't a skip, and an elided USDA example isn't a skip either (Section 3.6).
 - **Unhealthy** when any check failed.
 - **Incomplete** when nothing failed but some checks were skipped, or the page had no eligible checks.
 
@@ -164,6 +191,8 @@ A page with only skipped examples hasn't been verified, which is why it's incomp
 Working with Sublayers is the mixed case. Its `py` fence is an eligible check. Its exercise script is a `literalinclude`. When the fence passes and nothing else fails, the page is healthy, and the script appears only in the count.
 
 Authoring Point Instancing has a `literalinclude` and no eligible fence or code cell. That page stays incomplete, with the reason "referenced, not scanned". A prose-only lesson keeps the reason "no eligible checks". The report counts those prose pages separately.
+
+A page whose only USDA examples are elided, with no other check, is incomplete, with the reason `elided, not parsed`. If that page also has an `{include}` or `literalinclude`, the reason is still `elided, not parsed`, because the elided text is on the page itself and an edit to the lesson can fix it.
 
 ### CLI exit codes
 
@@ -187,7 +216,7 @@ python -m usd_docs_health check --corpus vendor/learnopenusd --format json
 python -m usd_docs_health gate --page path/to/page.md --corpus vendor/learnopenusd
 ```
 
-`check` scans the corpus. `gate` reruns both checks on one page and prints accept or reject.
+`check` scans the corpus. `gate` reruns every check on one page and prints accept or reject.
 
 The distribution name in `pyproject.toml` is `usd-docs-health`. The Python package is `usd_docs_health`, under `src/`, so the repository root and the importable module stay separate.
 
@@ -199,6 +228,7 @@ The distribution name in `pyproject.toml` is `usd-docs-health`. The Python packa
 - Page-level results and source locations
 - Failure details and skip reasons
 - How many `{include}` and `literalinclude` directives were referenced and not scanned
+- How many fences and USDA examples parsed as fragments, and how many USDA examples were elided
 
 The exit code tells a reader whether the run hit documentation failures, a setup problem, or a checker error. Each failure keeps its full traceback, so a single failure's cause can be read rather than guessed.
 
@@ -215,6 +245,7 @@ What done means for each v0 deliverable, and how I'll check it:
 | **Pinning** | Python 3.12, `usd-core==26.11`, the corpus SHA, and LFS setup are documented | `Usd.GetVersion()` reports the expected version. `git submodule status` matches the recorded SHA. Required assets are available |
 | **CI** | GitHub Actions initializes submodules and LFS, installs pinned dependencies, runs pytest, and records corpus results | CI fails the job on checker failures and publishes real corpus findings |
 | **Static check** | Ordinary fences labeled `python` or `py` are parsed, and supported dotted API references are checked against the installed package | Valid API fixtures pass. A fake symbol such as `Usd.Foo.Bar` fails. A fence that isn't Python fails. A page whose only Python is a `py` fence naming `Usd.Stage.CreateNew` produces a finding |
+| **USDA check** | `usda` fences and `{code-block} usda` directives are parsed with USD, and elided examples are counted | A valid example passes, with and without `#usda 1.0`. `variantSets "x" {`, a `color3f` array, and `double3 xformOp:rotateX = 10` fail. A non-breaking space fails with its own reason. An elided example adds no finding. A `relocates` excerpt passes as a fragment. The gate rejects a page whose only USDA is elided |
 | **Execution check** | Code cells run per page as a notebook, hidden setup cells included, in page order | A corpus run produces accurate pass, fail, and skipped results, including dependency, timeout, and display-cell cases |
 | **Pytest fixtures** | Known-good and known-bad Markdown fixtures exist | `pytest` confirms that expected successes pass and known failures are detected |
 | **Page table** | A static HTML page table is generated from the JSON report | A fixture report produces the expected rows, with failures first |
@@ -268,9 +299,10 @@ v0 defers:
 - Automatic upstream corpus updates
 - A second CI run on `usd-core` 25.11, to show which failures are specific to 26.11
 - The contents of files named by `{include}` or `literalinclude`. v0 counts each directive and leaves the named file unread and unrun.
+- Composing USDA examples, or opening the asset paths they name
 - Reproducing the full Sphinx build, and dynamic API analysis
 
-These could be useful later, but first the basic checks need to be reproducible and trustworthy. The gate command already reruns both checks on one proposed page.
+These could be useful later, but first the basic checks need to be reproducible and trustworthy. The gate command already reruns every check on one proposed page.
 
 ## 10. How I'll build it
 
@@ -292,7 +324,7 @@ These implementation details are still open.
 - The exact signals that mark a skip prerequisite, for example an import of an `omni` or `isaacsim` module.
 - The timeout values and resource limits, to be set and tested during implementation.
 
-The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted only when the first word after the backticks is `python` or `py`. Spaces before the backticks, between the backticks and the word, and after the word still count. `` ``` python `` and `` ``` py `` count. `` ```python3 `` does not, because that word is `python3`. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out. A fence that fails to parse is retried as a fragment (Section 3.5). It is not skipped.
+The corpus SHA is recorded in Section 2. The fence labels are settled from the pinned lessons. An ordinary fence is accepted by the Python checks only when the first word after the backticks is `python` or `py`. Spaces before the backticks, between the backticks and the word, and after the word still count. `` ``` python `` and `` ``` py `` count. `` ```python3 `` does not, because that word is `python3`. A `{code-cell}` directive stays the only form v0 executes. Labels `python3`, `powershell`, and `sh` stay out. A `{code-block}` directive stays out of the Python checks. A `{code-block}` with the argument `usda` is a USDA example (Section 3.6), and so is a fence labeled `usda`. A fence that fails to parse is retried as a fragment (Section 3.5). It is not skipped.
 
 Expanding scope, for example to weighted scoring or hosted dashboards, needs an explicit spec change, even if the first corpus run produces more failures or skips than expected.
 
