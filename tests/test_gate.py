@@ -337,6 +337,13 @@ def test_gate_rejects_a_variant_sets_typo(capsys):
     assert "accept" not in captured.out
 
 
+def test_gate_fail_line_without_a_symbol_has_one_space(capsys):
+    page = FIXTURES / "usda_variant_sets.md"
+    assert main(["gate", "--page", str(page)]) == 1
+    captured = capsys.readouterr()
+    assert f"fail {page}:5 Expected }}" in captured.out, captured.out
+
+
 def test_gate_rejects_a_non_breaking_space(tmp_path, capsys):
     page = tmp_path / "proposed.md"
     page.write_text(

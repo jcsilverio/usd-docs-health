@@ -133,9 +133,8 @@ def _check(args) -> int:
             for item in report["findings"]:
                 if item["status"] != "fail":
                     continue
-                name = item["symbol"] if item["symbol"] else ""
                 print(
-                    f"fail {item['page']}:{item['line']} {name} {item['reason']}".rstrip()
+                    _fail_line(item["page"], item["line"], item["symbol"], item["reason"])
                 )
 
         return 1 if failed else 0
@@ -200,15 +199,16 @@ def _gate_reasons(
         if item.status == "pass":
             continue
         if item.status == "fail":
-            name = item.symbol if item.symbol else ""
-            lines.append(
-                f"fail {item.page}:{item.line} {name} {item.reason}".rstrip()
-            )
+            lines.append(_fail_line(item.page, item.line, item.symbol, item.reason))
         else:
             lines.append(f"skipped {item.page}:{item.line} {item.reason}".rstrip())
     if lines:
         return lines
     return ["no eligible checks"]
+
+
+def _fail_line(page: str, line: int, symbol: str | None, reason: str) -> str:
+    return " ".join(part for part in (f"fail {page}:{line}", symbol, reason) if part)
 
 
 def _corpus_src(corpus: Path | None) -> Path | None:
