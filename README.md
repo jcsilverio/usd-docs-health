@@ -6,18 +6,21 @@
 
 ## Result
 
-On Learn OpenUSD at `fcbb129` with `usd-core` 26.11, 10 examples fail, on 6 of the 147 lesson pages. Every code cell passed. Nine of the failures are USDA examples, and one is a `python` fence. Paths are under `vendor/learnopenusd/docs/`, and lines are lines in the lesson file.
+On Learn OpenUSD at `fcbb129` with `usd-core` 26.11, 10 examples fail, on 6 of the 147 lesson pages. Every code cell passed. Paths are under `vendor/learnopenusd/docs/`, and lines are lines in the lesson file.
+
+Four are syntax errors:
 
 - `asset-structure/reference-payload-pattern/what-is-ref-payload-pattern.md`, line 29. `variantSets "color_variant" {` uses the list keyword where a variant set is defined. The block form is `variantSet "color_variant" = {`. USD reports `Expected }`.
-- `asset-modularity-instancing/refining-scenegraph-instances/scenegraph-instance-refinement.md`, line 29. The example is indented with non-breaking spaces (U+00A0). With those replaced, line 43 still fails: `color3f primvars:asset_color = [(1, 0, 0)]` puts an array on a single `color3f`. USD reports `Type name missing [] for shaped value.`
-- Same page, line 58. Non-breaking spaces. With those replaced, line 70 still fails: `double3 xformOp:rotateX = 10` gives one number to a three-value type. USD's first message is `Not enough values to parse value of type Vec3d`.
-- Same page, line 88. Non-breaking spaces. The rest parses.
-- `asset-modularity-instancing/authoring-scenegraph-instancing/scenegraph-instancing-intro.md`, line 79. Non-breaking spaces in the Warehouse example. The published page's copy text has them too, and USD rejects it. That was checked by reading the text the page's copy button builds, not by pasting it.
-- Same page, line 145. Non-breaking spaces.
-- `asset-modularity-instancing/refining-point-instances.md`, line 12. Non-breaking spaces. The example is also elided (`[...]`), so the rest isn't parsed.
-- `asset-modularity-instancing/authoring-point-instancing/point-instancing-intro.md`, line 29. Non-breaking spaces. The example is also elided.
-- Same page, line 84. Non-breaking spaces. The example is also elided.
+- `asset-modularity-instancing/refining-scenegraph-instances/scenegraph-instance-refinement.md`, line 43. `color3f primvars:asset_color = [(1, 0, 0)]` puts an array on a single `color3f`. USD reports `Type name missing [] for shaped value.`
+- Same page, line 70. `double3 xformOp:rotateX = 10` declares a single-axis rotation with a three-value type. It should be a single value, such as `double`. USD's first message is `Not enough values to parse value of type Vec3d`.
 - `composition-basics/references.md`, line 86. A `python` fence holds USDA text. Python 3.12 reports `expected '('`.
+
+Eight USDA examples are indented with non-breaking spaces (U+00A0), which USD rejects. Two of them hold the type errors at lines 43 and 70 above, and the checker reports those two at their first non-breaking space, lines 29 and 58.
+
+- `asset-modularity-instancing/refining-scenegraph-instances/scenegraph-instance-refinement.md`, lines 29, 58, and 88.
+- `asset-modularity-instancing/authoring-scenegraph-instancing/scenegraph-instancing-intro.md`, lines 79 and 145. Line 79 is the Warehouse example. The published page's copy text has the same characters, and USD rejects it. That was checked by reading the text the page's copy button builds, not by pasting it.
+- `asset-modularity-instancing/refining-point-instances.md`, line 12. The example is also elided (`[...]`), so the rest isn't parsed.
+- `asset-modularity-instancing/authoring-point-instancing/point-instancing-intro.md`, lines 29 and 84. Both examples are also elided.
 
 The counting rules, the full counts, and the limits are under [Results](#results) and [Limitations](#limitations).
 
@@ -152,7 +155,7 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 
 - Code cells run from the check command. `usd2gltf` is intercepted and counted. A code cell that needs a Git LFS pointer file is exit 2, a setup problem, not a failed example.
 - Ordinary `python` and `py` fences are parsed and checked for module-dotted names. Each fence adds one parse finding. A fence that parses is a pass, including a fence that names no module-dotted USD symbol. Each dotted name in that fence is a separate finding. A fence that still does not parse after a fragment retry fails. A retry that parses is a pass, counted separately, and the symbol's line stays the line in the lesson. The modules in this version are `Usd`, `Sdf`, `UsdGeom`, `UsdShade`, and `UsdLux`. The fence check does not run the code.
-- USDA examples are parsed, not composed or run, and the asset paths they name aren't opened. An example that fails to parse and has a literal `...` outside a quoted string is elided. It's counted, and it adds no finding. A non-breaking space (U+00A0) is a fail even when the rest of the example parses, because a reader who copies it gets text USD rejects. One retry wraps the example as layer metadata. A retry that parses is a pass, counted with the fragments.
+- USDA examples are parsed, not composed or run, and the asset paths they name aren't opened. An example that fails to parse and has a literal `...` outside a quoted string is elided. It's counted, and it adds no finding. A non-breaking space (U+00A0) is a fail even when the rest of the example parses, because USD rejects that character and a reader can't see it. One retry wraps the example as layer metadata. A retry that parses is a pass, counted with the fragments.
 - Lesson assets in Git LFS aren't required for the static check or the USDA check. CI pulls those assets before the corpus check.
 - A failure on 26.11 shows that an example failed on that release. It does not show that 26.11 caused the failure. There is no 25.11 run to compare against.
 - Links, prose, and instance methods such as `prim.GetReferences()` are outside this version. `{include}` and `literalinclude` directives are counted, and the named file is not read or run. Many of those files are Markdown. A page that already has a passing check stays healthy. A page with no eligible check whose only signal is one of those directives is incomplete, with the reason "referenced, not scanned." A prose-only page stays "no eligible checks."
@@ -161,4 +164,4 @@ A green CI run means pytest passed and the corpus check finished with exit code 
 
 ## How this was built
 
-I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. Coding agents drafted checker and test code, and I wrote some of it by hand. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the 10 examples that fail.
+I wrote SPEC.md first, as I worked through the Learn OpenUSD examples. It says what done looks like for each check and how that check is tested. I wrote the first version of the checker myself, with coding agents suggesting code and reviewing it for errors and best practices. After that, they drafted the new checks and their tests. I reviewed each change, reproduced failures, and merged it when it matched the spec and the tests passed. The counts above are from running that checker, and they include the 10 examples that fail.
