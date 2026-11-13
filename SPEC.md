@@ -160,7 +160,7 @@ Each example that is not elided adds one finding:
 
 - **A fail when the example had a non-breaking space.** The reason is `non-breaking space (U+00A0) at line N`, where N is the first such line in the lesson. If the parse still failed, the reason also gives USD's error and its line. The finding's line is N. An example with both a non-breaking space and `...` gets this fail, without USD's error, and is also counted in `elided`, because its USD content still wasn't checked.
 - **Otherwise, a pass** when the parse or the retry succeeded.
-- **Otherwise, a fail** with USD's error. When USD reports several errors, the reason lists every message in order. The finding's line comes from the last message, because only the last one says which line failed.
+- **Otherwise, a fail** with USD's error. When USD reports several errors, the reason lists each message once, in order. USD often repeats a message, once without its position and once with it, and the repeat is left out. The finding's line comes from the last message, because only the last one says which line failed.
 
 The line in the finding is the line in the lesson. The `#usda 1.0` line is there so USD can read the text, and that extra line is not reported. Counting starts at the first line with text, after any options in a `{code-block}`. If the retry also fails, report the first parse's error, not the retry's.
 

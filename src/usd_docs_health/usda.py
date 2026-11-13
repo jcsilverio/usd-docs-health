@@ -136,7 +136,10 @@ def _join(messages: list[str]) -> str:
     texts = []
     for message in messages:
         match = _POSITION.search(message)
-        texts.append((message[match.end():] if match else message).strip())
+        text = (message[match.end():] if match else message).strip()
+        # USD often raises the same error twice, without and then with its position.
+        if text not in texts:
+            texts.append(text)
     return "; ".join(texts)
 
 

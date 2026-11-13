@@ -87,6 +87,13 @@ def test_rotatex_reason_lists_both_messages_in_order():
     assert reason.index(first) < reason.index(last)
 
 
+def test_a_repeated_usd_message_is_listed_once():
+    color = check_usda(PAGES / "usda_color3f.md")[0].reason
+    assert color.count("Type name missing [] for shaped value") == 1, color
+    rotate = check_usda(PAGES / "usda_rotatex.md")[0].reason
+    assert rotate.count("Error parsing simple value") == 1, rotate
+
+
 def test_elided_example_adds_no_finding():
     findings = check_usda(PAGES / "usda_elided.md")
     assert list(findings) == []
