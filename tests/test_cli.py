@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,13 @@ def test_missing_symbol_page_is_exit_1(tmp_path):
 def test_not_python_page_is_exit_1(tmp_path):
     corpus = _corpus_with(tmp_path, "not_python.md")
     assert main(["check", "--corpus", str(corpus)]) == 1
+
+
+def test_text_fail_line_without_a_symbol_has_one_space(tmp_path, capsys):
+    corpus = _corpus_with(tmp_path, "not_python.md")
+    assert main(["check", "--corpus", str(corpus)]) == 1
+    captured = capsys.readouterr()
+    assert re.search(r"^fail .+:\d+ expected '\('$", captured.out, re.M), captured.out
 
 
 def test_unexpected_page_error_is_exit_3(tmp_path, monkeypatch, capsys):
