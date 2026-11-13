@@ -120,7 +120,7 @@ USDA check of `usda` fences and `{code-block} usda` examples. The corpus has 32.
 | Failed | 9 |
 | Elided | 5 |
 
-Three of the elided examples also have non-breaking spaces, so they're failures too. The other two add no finding. That's 30 findings from 32 examples. The failures are the nine USDA lines under [Result](#result).
+Three of the elided examples also have non-breaking spaces, so they're failures too. The other two add no finding. That's 30 findings from 32 examples. The nine failing USDA examples are listed under [Result](#result). Two of them appear there twice, once at the type error and once at the first non-breaking space, because the checker reports the non-breaking-space line.
 
 - Eight failures have non-breaking spaces (U+00A0). Each one is reported at the first such line in its example. In two of them, USD still fails after the spaces are replaced, at lines 43 and 70 of `scenegraph-instance-refinement.md`, and the reason gives both. The lesson labels both of those examples "NOT editable" and explains why in composition terms. The parse errors are separate from that.
 - One failure, `what-is-ref-payload-pattern.md` line 29, has no non-breaking space. It fails on the `variantSets` line alone.
